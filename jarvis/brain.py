@@ -31,6 +31,9 @@ TOOLS_PROMPT = (
     "\n\nTu contrôles l'ordinateur Windows de l'utilisateur grâce aux outils fournis. "
     "Si la demande correspond à un outil, appelle-le directement sans écrire de texte : "
     "l'outil annonce lui-même le résultat. N'invente jamais qu'une action a été faite sans appeler l'outil. "
+    "Tu peux appeler plusieurs outils à la suite : par exemple, pour écrire du code dans VS Code, appelle "
+    "open_app (VS Code), puis keyboard_shortcut (new), puis type_text avec le code complet. Pour écrire un "
+    "texte, un mail ou du code demandé par l'utilisateur, rédige-le toi-même et passe-le à type_text. "
     "Sinon, réponds normalement."
 )
 

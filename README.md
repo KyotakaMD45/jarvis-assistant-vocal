@@ -12,8 +12,8 @@ smoothly on a modest laptop (tested on an HP ProBook 650 G4: i7-8550U, 8 GB RAM,
   brightness, screenshots, reminders and timers, lock / sleep / shutdown (with spoken confirmation).
 - **Voice**: Microsoft neural voice (edge-tts, deep "Henri" voice, pitch/rate configurable) with an
   offline Windows voice fallback.
-- **Futuristic HUD** (HTML canvas in a WebView2 window, no Electron): a holographic man who turns his head on
-  command and lights up as he listens and speaks (or the glowing core: `hud.style` = `"orb"`), light waves,
+- **Futuristic HUD** (HTML canvas in a WebView2 window, no Electron): a holographic man with a real 3D face (eyes that blink
+  and follow, mouth that speaks) who turns his head on command and lights up as he listens and speaks (or the glowing core: `hud.style` = `"orb"`), light waves,
   live voice waveform, 30 FPS cap, low power mode.
 - **Runs in the background** with a tray icon; single instance; restart / quit from the tray.
 
@@ -45,6 +45,13 @@ Vous pouvez couper la parole à Jarvis quand il répond.
 |---|---|
 | "Jarvis, ouvre WhatsApp" / "ferme la calculatrice" | open / close apps, folders, sites |
 | "Jarvis, regarde à gauche / à droite / en haut / en bas", "regarde-moi" | the avatar turns its head |
+| "Jarvis, écris un code Python qui affiche bonjour dans VS Code" | the AI opens VS Code, creates a file and types the code |
+| "écris bonjour à tous", "copie ça", "colle", "enregistre", "sélectionne tout" | typing and shortcuts in the active window |
+| "nouvel onglet", "ferme l'onglet", "actualise", "descends", "plein écran" | browser / page control |
+| "réduis la fenêtre", "mets la fenêtre à gauche", "affiche le bureau", "change de fenêtre" | window management |
+| "ouvre les paramètres du Wi-Fi", "passe en mode sombre" | Windows settings |
+| "utilisation du processeur", "espace libre sur le disque", "mon adresse IP" | system information |
+| "cherche le fichier rapport", "vide la corbeille" (asks first) | files |
 | "Jarvis, cherche la météo de Paris" | web search |
 | "Jarvis, mets le volume à 30 %", "coupe le son" | volume |
 | "Jarvis, joue du Daft Punk sur YouTube", "pause", "chanson suivante" | music |

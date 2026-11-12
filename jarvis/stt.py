@@ -263,6 +263,15 @@ class Listener:
         return False, text.strip(" ,.!?;:-")
 
     @staticmethod
+    def _only_names(text: str) -> bool:
+        """The text is just the name, possibly repeated: "Jarvis. Jarvis." / "Jardis Jardis"."""
+        from jarvis.textnorm import simple
+
+        words = simple(text).split()
+        return bool(words) and len(words) <= 3 and all(
+            re.match(r"^(?:jarvis|jardis|jarvi|javis|garvis|jarviss?e|jarrez|(?:j|g|ch)[ae]rr?[dv]is)$", w) for w in words)
+
+    @staticmethod
     def _is_wake_only(spoken: str, vosk_heard_only_wake: bool) -> bool:
         """A very short Whisper result that is just a misspelled "Jarvis" ("J'avis.", "Jarder !")."""
         from jarvis.textnorm import simple
@@ -342,9 +351,12 @@ class Listener:
                 # "Jarvis" alone is the one thing the offline model hears reliably; Whisper tends to
                 # invent a sentence for it ("J'ai une petite question"), so trust Vosk here.
                 if cloud is not None and not (vosk_wake and not vosk_after):
-                    spoken = cloud.transcribe(audio)
+                    # Spelling hint "Jarvis" only while waiting for the name (see GroqWhisper.transcribe).
+                    spoken = cloud.transcribe(audio, wake_hint=not woke or vosk_wake or grammar_hit)
                     if spoken is not None:  # the cloud answered (None = failure -> offline text below)
                         found, after = self._split_wake_text(spoken)
+                        if after and self._only_names(after):
+                            after = ""  # "Jarvis. Jarvis." is a call, not a question
                         if not found and self._is_wake_only(spoken, vosk_wake and not vosk_after):
                             found, after = True, ""  # "J'avis.", "Jardim.", "Jarrez." = just "Jarvis"
                         if vosk_wake and not found:
@@ -356,6 +368,11 @@ class Listener:
                         if not woke and not found and not vosk_wake:
                             log.info("False wake ignored (Whisper heard %r)", spoken)
                             continue
+                        if woke and not after and not vosk_wake and len(text.split()) >= 2                                 and not self._maybe_wake(text):
+                            # Whisper returned only the name (or nothing) for a real sentence that the
+                            # offline model heard: trust the offline text instead of dropping it.
+                            log.info("Whisper gave %r, using the offline text %r", spoken, text)
+                            after = text
                         if not after and (found or vosk_wake):
                             woke, deadline = True, now + command_timeout
                             if on_wake:
@@ -410,6 +427,7 @@ class Listener:
         chunks: list[bytes] = []
         speech_start: int | None = None
         final_text = ""
+        last_partial = ""
         try:
             while True:
                 if not triggered and stop.is_set():
@@ -426,7 +444,9 @@ class Listener:
                 if self._rec.AcceptWaveform(data):
                     text = self._final()
                     if triggered:
-                        final_text = text
+                        if not text and not final_text and not last_partial:
+                            continue  # empty result right after the trigger: keep listening
+                        final_text = " ".join(x for x in (final_text, text) if x) or last_partial
                         break
                     if text and not is_echo(text.split()):
                         triggered, trigger_time, final_text = True, time.monotonic(), text
@@ -437,8 +457,10 @@ class Listener:
                     partial = json.loads(self._rec.PartialResult()).get("partial", "").strip()
                     if partial and speech_start is None:
                         speech_start = len(chunks) - 1
+                    if partial and triggered:
+                        last_partial = partial
                     if partial and not triggered and not is_echo(partial.split()):
-                        triggered, trigger_time = True, time.monotonic()
+                        triggered, trigger_time, last_partial = True, time.monotonic(), partial
                         log.info("Barge-in: %r", partial)
                         on_trigger()
         finally:
@@ -447,12 +469,15 @@ class Listener:
             return None
         audio = b"".join(chunks[max(0, (speech_start or 0) - 5):])
         cloud = self.transcriber if (self.transcriber is not None and self.transcriber.available()) else None
+        final_text = final_text or last_partial
         if cloud is not None:
-            spoken = cloud.transcribe(audio)
-            if spoken:
+            spoken = cloud.transcribe(audio, wake_hint=False)
+            if spoken and not self._only_names(spoken):
                 final_text = spoken
         found, after = self._split_wake_text(final_text)
-        return (after if found else final_text).strip() or None
+        result = (after if found else final_text).strip() or None
+        log.info("Barge-in sentence: %r", result)
+        return result
 
     def feed_pcm_for_test(self, pcm: bytes) -> None:
         """Inject 16 kHz mono PCM as if it came from the microphone (self-test)."""

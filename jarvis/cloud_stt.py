@@ -75,15 +75,20 @@ class GroqWhisper:
         except Exception:  # noqa: BLE001
             log.exception("Cloud speech recognition warm-up failed")
 
-    def transcribe(self, pcm: bytes) -> str | None:
-        """Return the text, "" for silence/noise, or None if the cloud failed (use the offline text)."""
+    def transcribe(self, pcm: bytes, wake_hint: bool = True) -> str | None:
+        """Return the text, "" for silence/noise, or None if the cloud failed (use the offline text).
+
+        wake_hint=True gives Whisper the spelling of "Jarvis" (to detect the wake word). It must be
+        False for the rest of a conversation: on short or unclear commands Whisper otherwise answers
+        with the prompt itself ("regarde à droite" came back as "Jarvis.")."""
         if len(pcm) < SAMPLE_RATE * 2 * 0.3:  # less than 0.3 s of audio
             return ""
         started = time.perf_counter()
         try:
             result = self._get_client().audio.transcriptions.create(
                 model=self.model, file=("speech.wav", _wav_bytes(pcm), "audio/wav"),
-                language="fr", prompt=PROMPT, temperature=0, response_format="json",
+                language="fr", temperature=0, response_format="json",
+                **({"prompt": PROMPT} if wake_hint else {}),
             )
         except Exception as exc:  # noqa: BLE001 - offline, quota, bad key...: fall back to Vosk
             self.last_error = f"{exc.__class__.__name__}: {exc}"

@@ -279,9 +279,13 @@ class VoiceAssistant:
 
     # Commands that open a window: the HUD steps aside, otherwise Windows (which does not let a
     # background program take the foreground) leaves the new window hidden behind it.
-    OPENS_WINDOW = {"open_app", "open_website", "web_search", "play_music"}
+    OPENS_WINDOW = {"open_app", "open_website", "web_search", "play_music", "windows_settings", "search_files"}
 
     def _run_command(self, command: commands.Command, args: dict, from_ai: bool = False) -> None:
+        if command.name in self.OPENS_WINDOW:
+            from jarvis import pcctl
+
+            pcctl.mark_app_opened()  # so that a following "type_text" waits for the new window
         result = commands.execute(command, args, self._context(from_ai))
         log.info("Command %s -> %r", command.name, result)
         if command.name in self.OPENS_WINDOW and result and not result.startswith(("Je n'ai pas", "Désolé")):
@@ -401,6 +405,13 @@ class VoiceAssistant:
     def handle(self, text: str) -> str:
         """Run one sentence. Returns "follow_up" (keep listening briefly) or "idle"."""
         found = commands.match(text)
+        if found is None and self._alternative and len(text.split()) <= 3:
+            # Whisper sometimes garbles a very short command ("copie ça" -> "PISA") that the offline
+            # model heard correctly: if only the offline version is a known command, use it.
+            found = commands.match(self._alternative)
+            if found is not None:
+                log.info("Using the offline transcript %r instead of %r", self._alternative, text)
+                text = self._alternative
         if found is not None:
             try:
                 self._run_command(found.command, found.args)

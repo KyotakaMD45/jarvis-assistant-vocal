@@ -45,7 +45,7 @@
     "model_path": "models/vosk-model-small-fr-0.22",
     "input_device": null,
     "command_timeout_seconds": 7,
-    "follow_up_seconds": 8,
+    "follow_up_seconds": 12,
     "wake_sound": true,
     "cloud_transcription": "groq",
     "cloud_model": "whisper-large-v3-turbo",

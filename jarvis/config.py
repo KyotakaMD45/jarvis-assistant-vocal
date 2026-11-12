@@ -49,7 +49,7 @@ DEFAULTS: dict[str, Any] = {
         "model_path": "models/vosk-model-small-fr-0.22",
         "input_device": None,
         "command_timeout_seconds": 7,
-        "follow_up_seconds": 8,
+        "follow_up_seconds": 12,
         "wake_sound": True,
         "cloud_transcription": "groq",
         "barge_in": True,
