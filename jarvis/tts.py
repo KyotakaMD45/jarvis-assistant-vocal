@@ -25,7 +25,7 @@ log = get_logger(__name__)
 CONNECT_TIMEOUT = 4.0      # seconds to open the websocket
 RECEIVE_TIMEOUT = 6.0      # max silence between two messages of one answer
 IDLE_RECONNECT = 30.0      # pre-warm reopens connections idle for longer than this
-OFFLINE_COOLDOWN = 30.0    # after a failure, use the offline voice for this long
+OFFLINE_COOLDOWN = 8.0     # after a failure, use the offline voice for this long
 
 
 class EdgeTTSFailure(Exception):
@@ -84,6 +84,7 @@ class EdgeSession:
         from edge_tts.data_classes import TTSConfig
 
         self.tts_config = TTSConfig(voice, rate, volume, pitch, "SentenceBoundary")
+        self.params = {"voice": voice, "rate": rate, "volume": volume, "pitch": pitch}  # as in config.json
         self._session = None
         self._ws = None
         self._last_used = 0.0
@@ -141,6 +142,21 @@ class EdgeSession:
         )
         self._last_used = time.monotonic()
         log.info("edge-tts connected in %.2fs", time.perf_counter() - started)
+
+    async def synth_fresh(self, text: str, on_audio: Callable[[bytes], None]) -> None:
+        """Same voice through edge-tts's own one-shot connection (used when the persistent
+        connection keeps failing): slower to start, but very reliable."""
+        import edge_tts
+
+        p = self.params
+        got = False
+        stream = edge_tts.Communicate(text, p["voice"], rate=p["rate"], volume=p["volume"], pitch=p["pitch"]).stream()
+        async for chunk in stream:
+            if chunk["type"] == "audio" and chunk["data"]:
+                got = True
+                on_audio(chunk["data"])
+        if not got:
+            raise EdgeTTSFailure("no audio received")
 
     def _get_lock(self) -> asyncio.Lock:
         if self._lock is None:
@@ -380,6 +396,11 @@ class Speaker:
 
                     try:
                         self._run(self._edge.synth(sentence, on_audio), CONNECT_TIMEOUT * 2 + RECEIVE_TIMEOUT * 3)
+                        continue
+                    except Exception as exc:  # noqa: BLE001
+                        log.info("edge-tts persistent connection failed (%r), using a fresh connection", exc)
+                    try:
+                        self._run(self._edge.synth_fresh(sentence, on_audio), 20)
                         continue
                     except Exception as exc:  # noqa: BLE001
                         log.warning("edge-tts failed, switching to the offline voice: %r", exc)

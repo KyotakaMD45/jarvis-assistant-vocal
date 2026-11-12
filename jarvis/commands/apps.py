@@ -156,6 +156,8 @@ COMMANDS = [
         parameters={"app": {"type": "string", "description": "Application, folder or site name as the user said it"}},
         required=["app"],
         priority=10,
+        # "ouvre WhatsApp et envoie…" is not an app called "WhatsApp et envoie…": the AI takes it.
+        accept=lambda a: len(a.get("app", "").split()) <= 5 and not re.search(r"\b(?:et|puis|ensuite|and|then)\b", a.get("app", "")),
     ),
     Command(
         name="close_app",

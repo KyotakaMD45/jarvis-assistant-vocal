@@ -40,6 +40,7 @@ def which_ai(ctx: CommandContext, args: dict) -> str:
 COMMANDS = [
     Command(
         name="switch_ai",
+        ai_tool=False,
         description="Switch the assistant's AI provider to claude, groq, gemini or openai.",
         run=switch_ai,
         patterns=[r"^(?:passe|pas|passez|bascule|basculez|basculer|change|changez|utilise|utilisez|prends|active|mets|mais)"

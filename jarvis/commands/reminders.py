@@ -102,6 +102,7 @@ COMMANDS = [
     ),
     Command(
         name="list_reminders",
+        ai_tool=False,
         description="List the pending reminders and timers.",
         run=list_reminders,
         patterns=[r"^(?:quels? sont mes|liste mes|lis moi mes|lis mes|donne moi mes|j'ai des|ai je des|est ce que j'ai des|mes)\s+" + _RAPPEL],
@@ -109,6 +110,7 @@ COMMANDS = [
     ),
     Command(
         name="clear_reminders",
+        ai_tool=False,
         description="Delete all pending reminders and timers.",
         run=clear_reminders,
         patterns=[r"^(?:annule|annulez|supprime|supprimez|efface|effacez|vide)\s+(?:tous\s+|toutes\s+)?(?:mes|les)\s+" + _RAPPEL],

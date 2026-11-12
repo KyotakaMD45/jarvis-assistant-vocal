@@ -151,6 +151,7 @@ COMMANDS = [
     ),
     Command(
         name="read_clipboard",
+        ai_tool=False,
         description="Read aloud the text currently in the clipboard.",
         run=read_clipboard,
         patterns=[r"^(?:lis|lit|lire|dis moi|qu'est-ce qu'il y a dans|que contient) (?:le )?presse[ -]papiers?$"],

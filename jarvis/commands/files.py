@@ -35,6 +35,7 @@ COMMANDS = [
     ),
     Command(
         name="empty_recycle_bin",
+        ai_tool=False,
         description="Empty the Windows recycle bin (asks for confirmation).",
         run=empty_bin,
         confirm="Voulez-vous vraiment vider la corbeille ? Les fichiers seront supprimés définitivement. Répondez oui ou non.",

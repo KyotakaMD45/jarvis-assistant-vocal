@@ -35,6 +35,7 @@ def tell_date(ctx: CommandContext, args: dict) -> str:
 COMMANDS = [
     Command(
         name="tell_time",
+        ai_tool=False,
         description="Tell the current local time.",
         run=tell_time,
         patterns=[r"^(?:il est |tu as |t'as |donne moi |dis moi |c'est )?(?:quelle heure|l'heure|l heure)\b",
@@ -43,6 +44,7 @@ COMMANDS = [
     ),
     Command(
         name="tell_date",
+        ai_tool=False,
         description="Tell today's date and day of the week.",
         run=tell_date,
         patterns=[r"^(?:on est |nous sommes |c'est )?(?:quel jour|quelle date|la date|le combien)\b",

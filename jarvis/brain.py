@@ -50,7 +50,7 @@ TOOLS_PROMPT = (
     "open_app (VS Code), puis keyboard_shortcut (new), puis type_text avec le code complet. Pour écrire un "
     "texte, un mail ou du code demandé par l'utilisateur, rédige-le toi-même et passe-le à type_text. "
     "Pour « ce texte », « ça », « la sélection » (résumer, traduire, corriger, reformuler, expliquer), utilise "
-    "selected_text. Pour envoyer un message (WhatsApp ou mail), utilise send_message : l'utilisateur confirmera. "
+    "selected_text. Pour envoyer un message (WhatsApp ou mail), utilise send_message directement (il ouvre lui-même WhatsApp ou la messagerie : n'appelle pas open_app avant) ; l'utilisateur confirmera. "
     "Pour « demande à Claude / ChatGPT / Perplexity », utilise ask_web_ai. "
     "Tu utilises le PC comme son propriétaire le ferait, comme un humain : pour agir dans une application "
     "(boutons, menus, champs), regarde d'abord avec screen_look, puis utilise click_element et fill_field. "

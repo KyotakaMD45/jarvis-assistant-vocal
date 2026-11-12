@@ -28,7 +28,7 @@ log = get_logger(__name__)
 
 # What Jarvis *says* (French); the console/HUD shows the detailed English message.
 SPOKEN = {
-    "online": "Knull en ligne.",
+    "online": "Knull en ligne. À votre service, monsieur.",
     "no_mic": "Je n'ai pas accès au micro. Vous pouvez taper vos commandes.",
     "mic_lost": "J'ai perdu le micro. J'essaie de le reconnecter.",
     "auth": "La clé d'accès de l'intelligence artificielle n'est pas valide. Lancez le test pour plus de détails.",
@@ -278,10 +278,24 @@ class VoiceAssistant:
                 answer = self._typed.get(timeout=0.1 if self.mic_ok else 10)
             except queue.Empty:
                 answer = ""
+        offline = self.listener.last_alternative or ""
         print(f"You > {answer}")
         self.ui.log("user", answer or "(pas de réponse)")
         self._set_state("thinking")
-        return simple(answer) in YES or simple(answer).startswith(("oui", "yes", "yeah"))
+
+        def says_yes(text: str) -> bool:
+            t = simple(text or "")
+            return t in YES or t.startswith(("oui", "yes", "yeah", "ouais", "vas y", "vas-y", "envoie", "go ", "ok ", "d'accord"))
+
+        def says_no(text: str) -> bool:
+            words = simple(text or "").replace(",", " ").split()
+            return bool(words) and words[0] in {"non", "no", "nope", "annule", "annuler", "pas", "stop", "attends", "surtout"}
+
+        if says_no(answer) or says_no(offline):
+            return False
+        # Whisper sometimes turns a short "oui" into English ("We are one."): the offline model
+        # hears French reliably, so either one saying "oui" is enough.
+        return says_yes(answer) or says_yes(offline)
 
     def voice_test(self) -> None:
         v = self.cfg["voice"]
@@ -364,6 +378,31 @@ class VoiceAssistant:
         r"music|song|email|send|tab|window|scroll|select|refresh|reload|lock|sleep|shut|restart|dark|light|"
         r"translate|summari|fix|rewrite|ask|click|turn|set|volume|sound)",
         re.IGNORECASE)
+
+    # The tool list is sent with every request: only the groups the sentence talks about (plus a
+    # core set) keep requests small, so the free Groq quota lasts and answers stay fast.
+    CORE_TOOLS = {"open_app", "close_app", "open_website", "web_search", "keyboard_shortcut", "type_text",
+                  "screen_look", "click_element", "fill_field", "window_control"}
+    TOOL_GROUPS = [
+        (r"messag|whatsapp|mail|envoi|send|ecri|repond|contact|dis lui|dis-lui", {"send_message"}),
+        (r"musique|chanson|song|music|joue|play|pause|suivant|next|precedent|spotify|youtube|deezer", {"play_music", "media_control"}),
+        (r"volume|son\b|sound|mute|muet|fort|bas", {"volume", "media_control"}),
+        (r"lumin|bright|veille|sleep|eteins|shut|redemarr|restart|verrouill|lock|captur|screenshot|batter", {"system_control"}),
+        (r"parametre|reglage|setting|wifi|wi-fi|bluetooth|mode sombre|mode clair|dark|light|fond d'ecran", {"windows_settings"}),
+        (r"rappel|remind|minuteur|timer|alarme|reveil", {"set_reminder", "set_timer"}),
+        (r"texte|selection|resum|tradui|translat|corrig|reformul|summari|explique ce|rewrite", {"selected_text"}),
+        (r"claude|chatgpt|chat gpt|perplexity", {"ask_web_ai"}),
+        (r"processeur|cpu|ram|memoire|disque|disk|ip\b|allume depuis|uptime", {"system_info"}),
+        (r"fichier|file|dossier|folder|document", {"search_files"}),
+    ]
+
+    def _select_tools(self, text: str) -> list[dict]:
+        folded = simple(text)
+        wanted = set(self.CORE_TOOLS)
+        for pattern, names in self.TOOL_GROUPS:
+            if re.search(pattern, folded):
+                wanted |= names
+        return [t for t in commands.tool_specs() if t["name"] in wanted]
 
     def _needs_tools(self, text: str) -> bool:
         return bool(self.ACTION_HINTS.search(simple(text)))
@@ -449,7 +488,7 @@ class VoiceAssistant:
         print(f"{self.cfg['assistant_name']} > ", end="", flush=True)
         started = time.perf_counter()
         first = True
-        tools = commands.tool_specs() if self.use_tools and self._needs_tools(text) else None
+        tools = self._select_tools(text) if self.use_tools and self._needs_tools(text) else None
         spoken: list[str] = []
         spoken_words: set[str] = set()
 
@@ -550,8 +589,12 @@ class VoiceAssistant:
 
     def handle(self, text: str) -> str:
         """Run one sentence. Returns "follow_up" (keep listening briefly) or "idle"."""
-        found = commands.match(text)
-        if found is None and self._alternative and len(self._alternative.split()) <= 8:
+        # "Ouvre WhatsApp et envoie un message à…": a local rule would only open WhatsApp.
+        multi = len(text.split()) >= 6 and bool(self.MULTI_STEP.search(text)) or text.count(".") + text.count("?") >= 2
+        found = None if multi else commands.match(text)
+        if multi:
+            log.info("Several steps in one sentence: the AI handles it")
+        if found is None and not multi and self._alternative and len(self._alternative.split()) <= 8:
             # Whisper sometimes garbles a command ("ferme la fenêtre WhatsApp" -> "film raffiné") that
             # the offline model heard correctly: if only the offline version is a known command, use it.
             found = commands.match(self._alternative)

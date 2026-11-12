@@ -16,7 +16,7 @@ def quit_jarvis(ctx: CommandContext, args: dict) -> str:
 
 def goodbye(ctx: CommandContext, args: dict) -> str:
     """"Au revoir" / "bye" end the conversation; Knull keeps running in the background."""
-    return "À plus tard."
+    return "À votre service, monsieur."
 
 
 def restart_jarvis(ctx: CommandContext, args: dict) -> str:
@@ -74,7 +74,7 @@ COMMANDS = [
     # Quitting the program needs an explicit order AND a spoken "oui" (speech recognition sometimes
     # invents "au revoir" on short noises, which used to switch Knull off).
     Command(name="quit_jarvis", description="Quit Knull completely.", run=quit_jarvis, ai_tool=False, priority=100,
-            confirm="Tu veux vraiment que je m'éteigne complètement ? Réponds oui ou non.",
+            confirm="Voulez-vous vraiment que je m'éteigne complètement ? Répondez oui ou non.",
             patterns=[r"^(?:arrete[ -]toi|eteins[ -]toi|eteint[ -]toi|quitte|quitte[ -]toi|quit|exit|desactive[ -]toi|shut down|switch off)(?: completement| jarvis| apex| knull| null| nul)?$"]),
     Command(name="goodbye", description="End the conversation (Knull keeps running).", run=goodbye, ai_tool=False, priority=100,
             patterns=[r"^(?:(?:ok |bon |merci |je (?:te )?dis )*au revoir|bonne nuit|bye(?: bye)?|a plus tard|a plus|a la prochaine|goodbye|good night|see you)(?: jarvis| apex| knull| null| nul)?$"]),

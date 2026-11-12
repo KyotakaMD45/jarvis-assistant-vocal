@@ -106,11 +106,22 @@ def _send_whatsapp(ctx: CommandContext, contact: str, text: str) -> str:
         return "Je n'arrive pas à lire WhatsApp. Il est peut-être en train de se connecter."
     composer = _composer(items)
     if not (composer and uictl.name_score(wanted, _chat_name(composer)) >= 0.75):
-        # Search the contact, then pick the closest name among the results.
-        uictl.type_into(_search_box(items)[0], wanted)
-        time.sleep(1.2)
-        rows = [(c, ct, n) for c, ct, n in uictl.elements(hwnd) if ct in ("DataItemControl", "ListItemControl") and n]
+        # 1) the chats already on screen; 2) WhatsApp search with the first letters only (its search
+        # wants exact text, and the spoken name is often misspelled: "Benny Mahou" for "Benimaru");
+        # 3) the full name. Each time, the closest name on screen wins.
+        def chat_rows():
+            return [(c, ct, n) for c, ct, n in uictl.elements(hwnd) if ct in ("DataItemControl", "ListItemControl") and n]
+
+        rows = chat_rows()
         hit = uictl.best_match(rows, wanted, minimum=0.6)
+        letters = uictl.fold(wanted).replace(" ", "")[:3]
+        for query in ([letters] if len(letters) >= 2 else []) + [wanted]:
+            if hit:
+                break
+            uictl.type_into(_search_box(uictl.elements(hwnd, kinds={"EditControl"}))[0], query)
+            time.sleep(1.2)
+            rows = chat_rows()
+            hit = uictl.best_match(rows, wanted, minimum=0.6)
         if not hit:
             others = []
             for _c, _ct, n in rows[:6]:
@@ -144,9 +155,9 @@ def _send_whatsapp(ctx: CommandContext, contact: str, text: str) -> str:
         now = _composer(uictl.elements(hwnd, kinds={"EditControl"}))
         if now and not uictl.value_of(now[0]).strip():
             log.info("WhatsApp message sent and verified (%s)", shown)
-            return f"C'est envoyé à {shown}."
+            return f"Message envoyé à {shown}, monsieur."
     log.warning("WhatsApp send could not be verified (%s)", shown)
-    return f"J'ai appuyé sur envoyer, mais je n'arrive pas à le vérifier. Jette un œil à WhatsApp."
+    return f"J'ai appuyé sur envoyer, mais je n'arrive pas à le vérifier. Vérifiez WhatsApp, s'il vous plaît."
 
 
 def _send_email(ctx: CommandContext, contact: str, text: str, subject: str) -> str:
@@ -158,7 +169,7 @@ def _send_email(ctx: CommandContext, contact: str, text: str, subject: str) -> s
     except OSError:
         return "Aucune application de mail n'est configurée sur ce PC."
     if not address:
-        return f"Le brouillon est prêt. Je n'ai pas l'adresse de {contact} : ajoute-la, puis envoie."
+        return f"Le brouillon est prêt. Je n'ai pas l'adresse de {contact} : ajoutez-la, puis envoyez."
     hwnd = pcctl.wait_for_target(9.0)
     if not hwnd:
         return "Le brouillon est ouvert, mais je n'ai pas pu l'envoyer : vérifie-le et envoie-le."
@@ -167,7 +178,7 @@ def _send_email(ctx: CommandContext, contact: str, text: str, subject: str) -> s
     pcctl.focus(hwnd)
     time.sleep(0.3)
     pcctl.send_combo("ctrl+enter")  # "send" in Outlook, Mail and Gmail
-    return f"Mail envoyé à {contact}. Vérifie qu'il est bien parti."
+    return f"Mail envoyé à {contact}. Vérifiez qu'il est bien parti."
 
 
 # ---------------------------------------------------------------------------------------
@@ -221,7 +232,7 @@ def selection(ctx: CommandContext, args: dict) -> str | None:
         return "Je ne trouve pas de fenêtre active."
     text = _copy_selection()
     if not text:
-        return "Sélectionne d'abord le texte, puis redemande-moi."
+        return "Sélectionnez d'abord le texte, puis redemandez-moi."
     if task == "read":
         return text[:1500]
     if task == "translate":
