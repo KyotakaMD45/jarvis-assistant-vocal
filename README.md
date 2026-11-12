@@ -12,9 +12,7 @@ smoothly on a modest laptop (tested on an HP ProBook 650 G4: i7-8550U, 8 GB RAM,
   brightness, screenshots, reminders and timers, lock / sleep / shutdown (with spoken confirmation).
 - **Voice**: Microsoft neural voice (edge-tts, deep "Henri" voice, pitch/rate configurable) with an
   offline Windows voice fallback.
-- **Futuristic HUD** (HTML canvas in a WebView2 window, no Electron): a muscular holographic android with a real 3D face
-  (armour-plate seams, glowing insignia, rotating iris rings, blinking eyes, speaking mouth), orbit rings, live
-  callouts, a hexagonal core, bloom, scanlines and glitches, who turns his head on command and lights up as he listens and speaks (or the glowing core: `hud.style` = `"orb"`), light waves,
+- **Futuristic HUD** (HTML canvas in a WebView2 window, no Electron): glowing core, light waves,
   live voice waveform, 30 FPS cap, low power mode.
 - **Runs in the background** with a tray icon; single instance; restart / quit from the tray.
 
@@ -45,7 +43,6 @@ Vous pouvez couper la parole à Jarvis quand il répond.
 | Say / do | Effect |
 |---|---|
 | "Jarvis, ouvre WhatsApp" / "ferme la calculatrice" | open / close apps, folders, sites |
-| "Jarvis, regarde à gauche / à droite / en haut / en bas", "regarde-moi" | the avatar turns its head |
 | "Jarvis, écris un code Python qui affiche bonjour dans VS Code" | the AI opens VS Code, creates a file and types the code |
 | "écris bonjour à tous", "copie ça", "colle", "enregistre", "sélectionne tout" | typing and shortcuts in the active window |
 | "nouvel onglet", "ferme l'onglet", "actualise", "descends", "plein écran" | browser / page control |
@@ -69,7 +66,7 @@ Vous pouvez couper la parole à Jarvis quand il répond.
 - `ai`: active provider, models, system prompt (personality), answer length, timeouts.
 - `voice`: `fr-FR-HenriNeural`, `pitch` (`-25Hz`), `rate` (`-5%`) — `start.bat --voice-test` to hear it.
 - `listening`: wake words, microphone, `cloud_transcription` (`groq`/`off`), `barge_in`, follow-up time.
-- `hud`: `style` (`avatar` or `orb`), `low_power`, `fps`, `fullscreen`, `sounds`.
+- `hud`: `low_power`, `fps`, `fullscreen`, `sounds`.
 
 ## Add a command
 

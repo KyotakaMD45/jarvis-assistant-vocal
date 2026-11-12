@@ -11,9 +11,8 @@
   <canvas id="space"></canvas>
   <!-- Flowing light waves (half resolution, scaled up = soft glow for free) -->
   <canvas id="waves"></canvas>
-  <!-- Central core (style "orb") or holographic man (style "avatar") -->
+  <!-- Central core -->
   <canvas id="orb"></canvas>
-  <canvas id="avatar"></canvas>
 
   <!-- HUD frame: corner brackets + discreet readouts -->
   <div class="frame" aria-hidden="true"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>
@@ -32,7 +31,6 @@
     </button>
   </div>
   <div id="label" class="label">SPEAK NOW</div>
-  <div id="ticker" class="ticker"></div>
 
   <!-- Bottom-right controls -->
   <nav class="controls" aria-label="Jarvis controls">
@@ -95,7 +93,6 @@
 
   <div id="disconnected" class="disconnected" hidden>LINK LOST — RECONNECTING</div>
 
-  <script src="avatar.js"></script>
   <script src="hud.js"></script>
 </body>
 </html>

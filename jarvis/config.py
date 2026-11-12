@@ -67,7 +67,6 @@ DEFAULTS: dict[str, Any] = {
         "width": 1280,
         "height": 760,
         "sounds": True,
-        "style": "avatar",
     },
 }
 
@@ -151,8 +150,6 @@ def _sanitize_voice(cfg: dict) -> list[str]:
             hud[key] = hdef[key]
     for key in ("enabled", "low_power", "fullscreen", "maximized", "sounds"):
         hud[key] = bool(hud.get(key, hdef[key]))
-    if hud.get("style") not in ("avatar", "orb"):
-        hud["style"] = "avatar"
     if hud["low_power"]:
         hud["fps"] = min(hud["fps"], 20)
     return warnings

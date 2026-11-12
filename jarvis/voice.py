@@ -140,9 +140,6 @@ class VoiceAssistant:
         self.speaker.stop()  # also interrupts Jarvis if he is talking
         self._push_to_talk.set()
 
-    def avatar_look(self, direction: str) -> None:
-        self.ui.look(direction)
-
     def repeat_last(self) -> None:
         self._announcements.put(self._last_answer or "Je n'ai encore rien dit.")
 

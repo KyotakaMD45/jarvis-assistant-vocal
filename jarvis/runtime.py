@@ -44,8 +44,7 @@ class Runtime:
             from jarvis.hud_server import HudServer
 
             hud = cfg["hud"]
-            self.server = HudServer({"fps": hud["fps"], "low_power": hud["low_power"], "style": hud["style"],
-                                     "assistant_name": cfg["assistant_name"]})
+            self.server = HudServer({"fps": hud["fps"], "low_power": hud["low_power"], "assistant_name": cfg["assistant_name"]})
         ui = Ui(self.server.publish) if self.server else Ui()
         self.assistant = VoiceAssistant(cfg, Brain(cfg), warnings, ui=ui)
         self.tray = Tray(on_show=self.show_hud, on_toggle_listening=self.assistant.toggle_listening,

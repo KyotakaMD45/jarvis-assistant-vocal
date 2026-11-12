@@ -99,7 +99,7 @@ class HudServer:
                     return self._events()
                 # Static assets (css/js) are not secret; the token protects data and commands.
                 name = url.path.lstrip("/")
-                if name in ("hud.css", "hud.js", "avatar.js"):
+                if name in ("hud.css", "hud.js"):
                     return self._static(name)
                 return self._send(404, b"not found")
 
