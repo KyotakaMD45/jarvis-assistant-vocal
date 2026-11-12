@@ -11,8 +11,18 @@
   <canvas id="space"></canvas>
   <!-- Flowing light waves (half resolution, scaled up = soft glow for free) -->
   <canvas id="waves"></canvas>
+  <!-- Capability nodes and their links (agent-orb style) -->
+  <canvas id="web"></canvas>
   <!-- Central core -->
   <canvas id="orb"></canvas>
+
+  <!-- Overview: large clock (agent-orb style) -->
+  <div class="overview" aria-hidden="true">
+    <i class="ov-line"></i><small>K.N.U.L.L. · OVERVIEW</small>
+    <div class="ov-row"><b id="ov-time">--:--</b><span id="ov-date">&nbsp;</span></div>
+  </div>
+  <!-- Last exchange -->
+  <div id="transcript" class="transcript" aria-live="polite"></div>
 
   <!-- HUD frame: corner brackets + discreet readouts -->
   <div class="frame" aria-hidden="true"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>
@@ -93,6 +103,7 @@
 
   <div id="disconnected" class="disconnected" hidden>LINK LOST — RECONNECTING</div>
 
+  <script src="apex.js"></script>
   <script src="hud.js"></script>
 </body>
 </html>

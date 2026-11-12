@@ -37,6 +37,9 @@ class Ui:
     def log_end(self, entry_id: str) -> None:
         self._send("log_end", {"id": entry_id})
 
+    def tool(self, name: str) -> None:
+        self._send("tool", {"name": name})
+
     def status(self, **fields: str) -> None:
         self._send("status", fields)
 

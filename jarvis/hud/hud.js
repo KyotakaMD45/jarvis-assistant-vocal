@@ -34,8 +34,10 @@
     error:     { spin: 0.6, wave: 0.7, pulse: 0.0, glow: 0.6, bars: 0.4 },
     paused:    { spin: 0.3, wave: 0.5, pulse: 0.0, glow: 0.45, bars: 0.25 },
   };
+  const apex = window.KnullApex ? new window.KnullApex() : null;   // agent-orb style
+  if (apex) document.body.classList.add("apex");
   const LABELS = {
-    boot: "STARTING", idle: "SPEAK NOW", listening: "SPEAK NOW", thinking: "THINKING",
+    boot: "STARTING", idle: apex ? "STANDBY" : "SPEAK NOW", listening: apex ? "LISTENING" : "SPEAK NOW", thinking: "THINKING",
     speaking: "SPEAKING", error: "ERROR · OPEN SYS", paused: "MIC PAUSED",
   };
   const cur = { ...TARGETS.boot };
@@ -540,8 +542,12 @@
     const lv = app.level;
     app.smooth += (lv - app.smooth) * (lv > app.smooth ? Math.min(1, dt * 16) : Math.min(1, dt * 5));
 
-    drawWaves(clock);
-    drawOrb(clock, dt);
+    if (apex) {
+      apex.draw(clock, dt, app.smooth, app.state);
+    } else {
+      drawWaves(clock);
+      drawOrb(clock, dt);
+    }
     drawBars(clock);
 
     const cost = performance.now() - t0;
@@ -565,15 +571,19 @@
     app.fps = on ? 20 : Math.max(app.fps, 30);
     $("btn-lowpower").textContent = `LOW POWER: ${on ? "ON" : "OFF"}`;
     $("btn-lowpower").classList.toggle("on", on);
-    setupOrb();
+    if (apex) apex.layout(app.W, app.H, on); else setupOrb();
   }
 
   function layout() {
     app.H = innerHeight;
     app.W = innerWidth;
-    drawSpace();
-    setupWaves();
-    setupOrb();
+    if (apex) {
+      apex.layout(app.W, app.H, app.lowPower);
+    } else {
+      drawSpace();
+      setupWaves();
+      setupOrb();
+    }
     setupBars();
   }
   let resizeTimer = 0;
@@ -658,6 +668,8 @@
     const hm = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
     $("clock").textContent = hm;
     $("top-time").textContent = d.toLocaleTimeString("fr-FR");
+    $("ov-time").textContent = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    $("ov-date").textContent = d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }).toUpperCase();
     $("top-date").textContent = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }).toUpperCase();
   }, 1000);
 
@@ -746,13 +758,35 @@
       case "log":
         addLog(msg.role, msg.text, msg.id);
         if (msg.role === "user" && msg.text) showCaption(`« ${msg.text} »`);
+        if (msg.role !== "system") transcriptAdd(msg.role, msg.text || "", msg.id);
         break;
-      case "log_append": appendLog(msg.id, msg.text); break;
+      case "log_append": appendLog(msg.id, msg.text); transcriptAppend(msg.id, msg.text); break;
+      case "tool": if (apex) apex.activate(msg.name); break;
       case "stats": onStats(msg); break;
       case "status": onStatus(msg); break;
       default: break;
     }
   }
+  // Last exchange, bottom-left (agent-orb style).
+  const transcript = $("transcript");
+  const tEntries = new Map();
+  function transcriptAdd(role, text, id) {
+    const p = document.createElement("p");
+    p.className = role;
+    const who = document.createElement("b");
+    who.textContent = role === "user" ? "VOUS" : "KNULL";
+    const body = document.createElement("span");
+    body.textContent = text;
+    p.append(who, body);
+    transcript.appendChild(p);
+    while (transcript.children.length > 2) transcript.removeChild(transcript.firstChild);
+    if (id) tEntries.set(id, body);
+  }
+  function transcriptAppend(id, text) {
+    const body = tEntries.get(id);
+    if (body) body.textContent += text;
+  }
+
   window.__hudHandle = handle; // debugging/tests
 
   function connect() {

@@ -27,7 +27,8 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-#space, #waves, #orb, #bars { position: fixed; display: block; pointer-events: none; }
+#space, #waves, #orb, #bars, #web { position: fixed; display: block; pointer-events: none; }
+#web { inset: 0; }
 #space { inset: 0; width: 100%; height: 100%; }
 #waves { left: 0; width: 100%; }                         /* top/height set by JS */
 #orb { left: 50%; transform: translateX(-50%); }         /* size set by JS */
@@ -241,3 +242,34 @@ html, body {
   border-radius: 1vh;
   background: rgba(30, 6, 10, 0.75);
 }
+
+
+/* ---------- Agent-orb style (body.apex) ---------- */
+.overview, .transcript { display: none; }
+body.apex #waves { display: none; }
+body.apex .top-right { display: none; }
+body.apex .top-left { left: auto; right: 2.6vh; align-items: flex-end; padding: 0.7vh 1.6vh;
+  border: 1px solid rgba(120, 200, 255, 0.25); border-radius: 2.2vh; background: rgba(4, 16, 26, 0.55); }
+body.apex .top-left b { font-size: 1.45vh; letter-spacing: 0.4em; }
+body.apex .frame i { border-color: rgba(80, 200, 255, 0.35); }
+body.apex .overview {
+  display: block; position: fixed; top: 2.6vh; left: 2.6vh; pointer-events: none;
+}
+.overview .ov-line { display: block; width: 22vh; height: 0.25vh; margin-bottom: 0.6vh; border-radius: 1vh;
+  background: linear-gradient(90deg, #6fe6ff, rgba(111, 230, 255, 0)); box-shadow: 0 0 1vh rgba(111, 230, 255, 0.8); }
+.overview small { font-family: var(--mono); font-size: 1.05vh; letter-spacing: 0.35em; color: rgba(140, 210, 255, 0.6); }
+.overview .ov-row { display: flex; align-items: baseline; gap: 1.6vh; margin-top: 0.8vh; }
+.overview b { font-family: var(--ui); font-weight: 300; font-size: 5.2vh; letter-spacing: 0.04em; color: #e9f6ff;
+  text-shadow: 0 0 1.4vh rgba(90, 200, 255, 0.45); }
+.overview span { font-family: var(--mono); font-size: 1.15vh; letter-spacing: 0.2em; color: rgba(150, 210, 255, 0.7); }
+body.apex .label { color: #ffc35a; letter-spacing: 0.6em;
+  text-shadow: 0 0 0.8vh rgba(255, 180, 60, 0.9), 0 0 2vh rgba(255, 150, 30, 0.45); }
+body.apex .label.caption { color: #dff3ff; letter-spacing: 0.05em; text-shadow: 0 0 0.8vh rgba(80, 200, 255, 0.6); }
+body.apex .transcript {
+  display: block; position: fixed; left: 2.6vh; bottom: 3vh; width: 34vw; max-width: 60vh;
+  font-family: var(--ui); font-size: 1.5vh; line-height: 1.45; color: rgba(220, 240, 255, 0.85); pointer-events: none;
+}
+.transcript p { margin: 0.4vh 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.transcript b { font-family: var(--mono); font-weight: 600; font-size: 1.05vh; letter-spacing: 0.25em; margin-right: 0.9vh; }
+.transcript .user b { color: #6fe6ff; }
+.transcript .jarvis b { color: #ffc35a; }

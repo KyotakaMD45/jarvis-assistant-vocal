@@ -262,9 +262,11 @@ class VoiceAssistant:
         self.speaker.speak(text)
         self._spoke_at = time.monotonic()
 
-    def _recent_echo(self, text: str) -> bool:
-        """Within 15 s after Knull spoke, a sentence made of his own words is his voice coming back."""
-        return time.monotonic() - getattr(self, "_spoke_at", 0.0) < 15 and self._is_own_echo(text)
+    def _recent_echo(self, text: str, seconds: float = 0.0) -> bool:
+        """A sentence that started at most 2.5 s after Knull stopped talking and only repeats his
+        words is his own voice coming back (an echo is immediate; the user answers later)."""
+        started = time.monotonic() - seconds
+        return started - getattr(self, "_spoke_at", -99.0) < 2.5 and self._is_own_echo(text)
 
     def ask_yes_no(self, question: str) -> bool:
         """Ask a question and wait for "oui" (spoken, or typed in the HUD)."""
@@ -478,6 +480,7 @@ class VoiceAssistant:
             from jarvis import pcctl
 
             pcctl.mark_app_opened()  # so that a following "type_text" waits for the new window
+        self.ui.tool(command.name)  # lights the matching node on the HUD
         result = self._localize(commands.execute(command, args, self._context(from_ai)))
         log.info("Command %s -> %r", command.name, result)
         if command.name in self.OPENS_WINDOW and result and not result.startswith(("Je n'ai pas", "Désolé")):
@@ -749,6 +752,10 @@ class VoiceAssistant:
         last = set(simple(self._last_answer or "").split())
         words = [w for w in simple(text).split() if len(w) > 1]
         if not last or len(words) < 3:  # "Canberra ?" repeating one word is a real question
+            return False
+        # A new important word ("Donald Trump" in "non, le président actuel c'est Donald Trump")
+        # means the user is talking, even when the rest repeats Knull's sentence.
+        if any(len(w) > 3 and w not in last for w in words):
             return False
         return sum(w in last for w in words) / len(words) >= 0.6
 

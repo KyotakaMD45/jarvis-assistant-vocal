@@ -245,7 +245,7 @@ class Listener:
 
     def _accept(self, text: str, audio: bytes, peak_percent: float, named: bool) -> bool:
         """Background noise filter: too quiet, or clearly not the owner's voice -> ignore."""
-        if self.echo_check is not None and self.echo_check(text):
+        if self.echo_check is not None and self.echo_check(text, len(audio) / (SAMPLE_RATE * 2)):
             log.info("Ignored: Knull's own voice picked up by the microphone: %r", text)
             return False
         floor = self.min_level_wake if named else self.min_level_follow
