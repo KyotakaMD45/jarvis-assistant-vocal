@@ -544,7 +544,9 @@ class VoiceAssistant:
                 if getattr(self, "_turn_lang", "fr") == "en":
                     prompt += "\n(The user is speaking English: answer in English.)"
                 hidden: list[str] = []
-                self.speaker.speak_stream(self._hide_action_text(self.brain.ask(prompt, tools=tools), hidden),
+                fallback = self._select_tools(text) if (tools is None and self.use_tools) else None
+                self.speaker.speak_stream(self._hide_action_text(self.brain.ask(prompt, tools=tools,
+                                                                                fallback_tools=fallback), hidden),
                                           on_text=on_text)
             finally:
                 monitor_stop.set()

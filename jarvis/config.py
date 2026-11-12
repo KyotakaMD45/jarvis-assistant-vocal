@@ -37,8 +37,8 @@ DEFAULTS: dict[str, Any] = {
         "music_folder": "",
     },
     "voice": {
-        "voice": "fr-FR-HenriNeural",
-        "voice_en": "en-GB-RyanNeural",
+        "voice": "fr-FR-RemyMultilingualNeural",
+        "voice_en": "",  # empty: the main voice also speaks English
         "pitch_en": "-20Hz",
         "rate_en": "-6%",
         "offline_fallback": False,

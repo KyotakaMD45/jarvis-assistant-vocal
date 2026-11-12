@@ -194,7 +194,8 @@ class Brain:
             prompt += f"\nFenêtre active de l'utilisateur : « {window} »."
         return prompt + (TOOLS_PROMPT if with_tools else "")
 
-    def ask(self, user_text: str, tools: list[dict] | None = None) -> Iterator[str]:
+    def ask(self, user_text: str, tools: list[dict] | None = None,
+            fallback_tools: list[dict] | None = None) -> Iterator[str]:
         """Yield the answer piece by piece. Raises BrainError on failure."""
         self.last_tool_calls = []
         user_text = (user_text or "").strip()
@@ -220,7 +221,9 @@ class Brain:
                                                    "tool choice is none", "model called a tool"))
                 if malformed and attempt == 0 and not parts:
                     log.warning("%s sent a malformed action, retrying once", self.label)
-                    if "tool choice is none" in msg or "model called a tool" in msg:
+                    if ("tool choice is none" in msg or "model called a tool" in msg) and fallback_tools:
+                        tools = fallback_tools  # it wanted to act: give it the tools this time
+                    elif "tool choice is none" in msg or "model called a tool" in msg:
                         messages = messages[:-1] + [{"role": "user", "content": user_text + "\n(Réponds simplement par "
                                                                                               "une phrase, sans outil.)"}]
                     continue
