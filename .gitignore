@@ -14,3 +14,6 @@ backup_before_avatar/
 voice_samples/
 @AutomationLog.txt
 uiautomation.log
+.clean_exit
+.crash_times
+crash.log

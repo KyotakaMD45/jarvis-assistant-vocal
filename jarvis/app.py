@@ -148,6 +148,28 @@ def chat_loop(cfg: dict, config_warnings: list[str]) -> int:
             print(f"\n[!] Unexpected error ({exc.__class__.__name__}). Details in jarvis.log.")
 
 
+def _install_crash_logging() -> None:
+    """Native crashes (no Python traceback) are written to crash.log; thread errors to jarvis.log."""
+    import faulthandler
+    import threading
+
+    from jarvis.paths import ROOT
+
+    try:
+        crash_file = open(ROOT / "crash.log", "a", encoding="utf-8")  # noqa: SIM115 - kept open on purpose
+        crash_file.write(f"\n--- Knull started (pid {os.getpid()}) ---\n")
+        crash_file.flush()
+        faulthandler.enable(file=crash_file, all_threads=True)
+    except OSError:
+        pass
+
+    def thread_hook(args) -> None:
+        log.error("Uncaught error in thread %s", getattr(args.thread, "name", "?"),
+                  exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
+
+    threading.excepthook = thread_hook
+
+
 def run_background(cfg: dict, warnings: list[str], use_hud: bool, start_hidden: bool, wait_pid: int | None) -> int:
     from jarvis.instance import InstanceLock, send_command, wait_for_process_exit
     from jarvis.runtime import Runtime
@@ -161,6 +183,7 @@ def run_background(cfg: dict, warnings: list[str], use_hud: bool, start_hidden: 
         print("Jarvis is already running" + (" - its window was brought back." if shown else "."))
         log.info("Second launch: Jarvis already running (show sent: %s)", shown)
         return 0
+    _install_crash_logging()
     code = Runtime(cfg, warnings, use_hud=use_hud, instance=lock, start_hidden=start_hidden).run()
     # Everything is closed at this point. Skip the interpreter teardown: pythonnet's exit hook
     # (used by the window) can keep one CPU core busy for ~15 s.

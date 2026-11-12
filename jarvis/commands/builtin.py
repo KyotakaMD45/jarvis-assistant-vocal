@@ -14,6 +14,11 @@ def quit_jarvis(ctx: CommandContext, args: dict) -> str:
     return "Au revoir, monsieur."
 
 
+def goodbye(ctx: CommandContext, args: dict) -> str:
+    """"Au revoir" / "bye" end the conversation; Knull keeps running in the background."""
+    return "À plus tard."
+
+
 def restart_jarvis(ctx: CommandContext, args: dict) -> str:
     if ctx.assistant is not None:
         ctx.assistant.request_restart()
@@ -66,8 +71,13 @@ def help_text(ctx: CommandContext, args: dict) -> str:
 
 
 COMMANDS = [
-    Command(name="quit_jarvis", description="Quit Jarvis completely.", run=quit_jarvis, ai_tool=False, priority=100,
-            patterns=[r"^(?:(?:je (?:te )?dis |bon )?au revoir|arrete[ -]toi|eteins[ -]toi|eteint[ -]toi|quitte|quit|exit|bonne nuit|desactive[ -]toi|bye(?: bye)?|a plus tard|a la prochaine|goodbye|good night|shut down)(?: jarvis| apex| knull| null| nul)?$"]),
+    # Quitting the program needs an explicit order AND a spoken "oui" (speech recognition sometimes
+    # invents "au revoir" on short noises, which used to switch Knull off).
+    Command(name="quit_jarvis", description="Quit Knull completely.", run=quit_jarvis, ai_tool=False, priority=100,
+            confirm="Tu veux vraiment que je m'éteigne complètement ? Réponds oui ou non.",
+            patterns=[r"^(?:arrete[ -]toi|eteins[ -]toi|eteint[ -]toi|quitte|quitte[ -]toi|quit|exit|desactive[ -]toi|shut down|switch off)(?: completement| jarvis| apex| knull| null| nul)?$"]),
+    Command(name="goodbye", description="End the conversation (Knull keeps running).", run=goodbye, ai_tool=False, priority=100,
+            patterns=[r"^(?:(?:ok |bon |merci |je (?:te )?dis )*au revoir|bonne nuit|bye(?: bye)?|a plus tard|a plus|a la prochaine|goodbye|good night|see you)(?: jarvis| apex| knull| null| nul)?$"]),
     Command(name="restart_jarvis", description="Restart Jarvis.", run=restart_jarvis, ai_tool=False, priority=100,
             patterns=[r"^(?:redemarre[ -]toi|redemarrez[ -]vous|relance[ -]toi|redemarre jarvis|relance jarvis|redemarre apex|relance apex|redemarre knull|relance knull|reboot|restart)$"]),
     Command(name="cancel", description="Cancel / never mind.", run=cancel, ai_tool=False, priority=100,

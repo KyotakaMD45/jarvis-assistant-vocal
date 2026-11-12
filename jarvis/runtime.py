@@ -91,7 +91,21 @@ class Runtime:
         self.quit()
 
     # -- lifecycle -------------------------------------------------------------------------
+    def _start_watchdog(self) -> None:
+        """A small separate process restarts Knull if it stops without being asked to."""
+        from jarvis.watchdog import CLEAN_EXIT
+
+        try:
+            CLEAN_EXIT.unlink(missing_ok=True)
+            flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+            subprocess.Popen([background_python(), "-m", "jarvis.watchdog", str(os.getpid())], cwd=str(ROOT),
+                             creationflags=flags, close_fds=True, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:  # noqa: BLE001 - the assistant must start even without its watchdog
+            log.exception("Could not start the watchdog")
+
     def run(self) -> int:
+        self._start_watchdog()
         self.instance.serve({"show": self.show_hud, "quit": self.quit, "restart": self.restart})
         self.reminders.start()
         self.tray.start()
@@ -141,6 +155,12 @@ class Runtime:
         if self.server is not None:
             self.server.stop()
         self.instance.release()
+        from jarvis.watchdog import CLEAN_EXIT
+
+        try:
+            CLEAN_EXIT.write_text("ok")  # tells the watchdog this stop was asked for
+        except OSError:
+            pass
         log.info("Shutdown complete")
 
     def _spawn_new_instance(self) -> None:

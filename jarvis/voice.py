@@ -565,7 +565,7 @@ class VoiceAssistant:
                 log.info("Local command %s unsure, asking the AI: %r", found.command.name, text)
                 return "follow_up" if self.ask_ai(text, self._alternative) else "idle"
             # A conversation-like command (time, battery...) may get a follow-up question.
-            return "follow_up" if found.command.name not in ("cancel", "quit_jarvis", "restart_jarvis") else "idle"
+            return "follow_up" if found.command.name not in ("cancel", "goodbye", "quit_jarvis", "restart_jarvis") else "idle"
         return "follow_up" if self.ask_ai(text, self._alternative) else "idle"
 
     # -- startup -------------------------------------------------------------------------

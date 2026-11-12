@@ -16,6 +16,8 @@ smoothly on a modest laptop (tested on an HP ProBook 650 G4: i7-8550U, 8 GB RAM,
 - **Futuristic HUD** (HTML canvas in a WebView2 window, no Electron): glowing core, light waves,
   live voice waveform, 30 FPS cap, low power mode.
 - **Runs in the background** with a tray icon; single instance; restart / quit from the tray.
+  A watchdog restarts Knull if it ever stops without being asked (native crashes go to `crash.log`).
+  "Au revoir" / "bye" only end the conversation; quitting needs "quitte" / "éteins-toi" and a spoken "oui".
 
 ![HUD](reference_ui.png)
 
