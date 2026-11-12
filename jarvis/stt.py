@@ -104,6 +104,7 @@ class Listener:
         self.voiceprint: list[float] | None = None
         self.collect_voice = False                # enrollment: keep the embedding of each sentence
         self.last_spk: tuple[list[float], int] = ([], 0)
+        self.echo_check = None                    # set by the assistant: text -> "is it my own voice?"
         self.last_audio = b""
 
     # -- microphone ----------------------------------------------------------------------
@@ -244,6 +245,9 @@ class Listener:
 
     def _accept(self, text: str, audio: bytes, peak_percent: float, named: bool) -> bool:
         """Background noise filter: too quiet, or clearly not the owner's voice -> ignore."""
+        if self.echo_check is not None and self.echo_check(text):
+            log.info("Ignored: Knull's own voice picked up by the microphone: %r", text)
+            return False
         floor = self.min_level_wake if named else self.min_level_follow
         if peak_percent < floor:
             log.info("Ignored (too quiet for a command, %.0f%% < %.0f%%): %r", peak_percent, floor, text)

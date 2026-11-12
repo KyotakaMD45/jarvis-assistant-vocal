@@ -92,7 +92,10 @@ class GroqWhisper:
         prompt = {"prompt": PROMPT} if wake_hint else {}
         try:
             client = self._get_client()
-            if len(self.languages) == 1:
+            # Language detection is unreliable on very short clips ("oui" came back as "Bye." and
+            # "We are one."): under 1.8 s, use the main language.
+            short = len(pcm) < SAMPLE_RATE * 2 * 1.8
+            if len(self.languages) == 1 or short:
                 result = client.audio.transcriptions.create(
                     model=self.model, file=("speech.wav", wav, "audio/wav"), language=self.languages[0],
                     temperature=0, response_format="json", **prompt)

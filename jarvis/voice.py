@@ -93,6 +93,7 @@ class VoiceAssistant:
         # Keep the red "error" orb while an error message is spoken.
         self.speaker.on_audio_start = lambda: self._state != "error" and self._set_state("speaking")
         self.listener = Listener(cfg)
+        self.listener.echo_check = self._recent_echo  # ignore Knull's own voice coming back
         self.follow_up_seconds = float(cfg["listening"]["follow_up_seconds"])
         self.wake_sound = cfg["listening"]["wake_sound"]
         self.sounds = cfg["hud"]["sounds"]
@@ -259,6 +260,11 @@ class VoiceAssistant:
         print(f"{self.cfg['assistant_name']} > {text}")
         self.ui.log("jarvis", text)
         self.speaker.speak(text)
+        self._spoke_at = time.monotonic()
+
+    def _recent_echo(self, text: str) -> bool:
+        """Within 15 s after Knull spoke, a sentence made of his own words is his voice coming back."""
+        return time.monotonic() - getattr(self, "_spoke_at", 0.0) < 15 and self._is_own_echo(text)
 
     def ask_yes_no(self, question: str) -> bool:
         """Ask a question and wait for "oui" (spoken, or typed in the HUD)."""
@@ -544,6 +550,7 @@ class VoiceAssistant:
             print()
             if spoken:
                 self._last_answer = "".join(spoken).strip()
+            self._spoke_at = time.monotonic()
             if barge.get("hit"):
                 log.info("Jarvis was interrupted; user said %r", barge.get("text"))
                 if barge.get("text"):
@@ -741,9 +748,9 @@ class VoiceAssistant:
         """The microphone caught the end of Knull's own answer ("Monsieur, avez…")."""
         last = set(simple(self._last_answer or "").split())
         words = [w for w in simple(text).split() if len(w) > 1]
-        if not last or not words:
+        if not last or len(words) < 3:  # "Canberra ?" repeating one word is a real question
             return False
-        return sum(w in last for w in words) / len(words) >= 0.7
+        return sum(w in last for w in words) / len(words) >= 0.6
 
     def enroll_voice(self) -> str:
         """Learn the owner's voice: four sentences -> voiceprint.json. Then other voices are ignored."""
