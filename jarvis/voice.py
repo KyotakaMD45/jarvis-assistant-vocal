@@ -510,16 +510,12 @@ class VoiceAssistant:
         monitor_stop = threading.Event()
 
         def is_echo(words: list[str]) -> bool:
+            # The laptop microphone hears Knull's own voice, and the offline model turns it into other
+            # words ("description son actif"): counting unknown words made Knull cut himself off and
+            # answer his own sentences. Now only a stop word or the name, said first, interrupts.
             ws = [w for w in (simple(x) for x in words) if w]
-            if not ws:
-                return True
-            if any(w in self.listener.wake_words or w in BARGE_WORDS for w in ws) and \
-                    not all(w in spoken_words for w in ws):
-                return False
-            if len(ws) < 3:
-                return True
-            unknown = sum(1 for w in ws if w not in spoken_words)
-            return unknown / len(ws) < 0.6
+            keys = BARGE_WORDS | set(self.listener.wake_words)
+            return not any(w in keys and w not in spoken_words for w in ws[:2])
 
         def on_trigger() -> None:
             barge["hit"] = True

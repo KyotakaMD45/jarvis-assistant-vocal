@@ -205,9 +205,14 @@ class Brain:
                 break
             except BrainError as err:
                 # The model sometimes writes malformed action arguments: one silent retry fixes it.
-                malformed = any(k in err.message.lower() for k in ("parse tool call", "tool_use_failed", "failed to call a function"))
+                msg = err.message.lower()
+                malformed = any(k in msg for k in ("parse tool call", "tool_use_failed", "failed to call a function",
+                                                   "tool choice is none", "model called a tool"))
                 if malformed and attempt == 0 and not parts:
                     log.warning("%s sent a malformed action, retrying once", self.label)
+                    if "tool choice is none" in msg or "model called a tool" in msg:
+                        messages = messages[:-1] + [{"role": "user", "content": user_text + "\n(Réponds simplement par "
+                                                                                              "une phrase, sans outil.)"}]
                     continue
                 log.error("%s request failed [%s]: %s", self.label, err.kind, err.message)
                 if parts and not err.message.startswith("(answer interrupted)"):

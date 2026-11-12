@@ -35,15 +35,15 @@
   },
   "voice": {
     "voice": "fr-FR-HenriNeural",
-    "pitch": "-30Hz",
-    "rate": "-8%",
+    "pitch": "-35Hz",
+    "rate": "-2%",
     "volume": "+0%",
     "offline_rate": 165,
     "offline_language": "fr",
     "test_sentence": "Bonsoir monsieur. Knull est en ligne, tous les systèmes sont opérationnels. All systems online.",
     "voice_en": "en-GB-RyanNeural",
-    "pitch_en": "-20Hz",
-    "rate_en": "-6%",
+    "pitch_en": "-25Hz",
+    "rate_en": "-2%",
     "offline_fallback": false
   },
   "listening": {

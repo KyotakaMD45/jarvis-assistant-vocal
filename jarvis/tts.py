@@ -47,7 +47,7 @@ def clean_for_speech(text: str) -> str:
     return _SPACES.sub(" ", text).strip()
 
 
-def iter_sentences(chunks: Iterable[str], first_max: int = 70, next_max: int = 160) -> Iterator[str]:
+def iter_sentences(chunks: Iterable[str], first_max: int = 70, next_max: int = 450) -> Iterator[str]:
     """Group streamed text into speakable pieces as early as possible.
 
     A piece ends at a sentence end; a long piece is cut at its last comma so the
