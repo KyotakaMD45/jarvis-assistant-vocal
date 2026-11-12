@@ -12,8 +12,9 @@ smoothly on a modest laptop (tested on an HP ProBook 650 G4: i7-8550U, 8 GB RAM,
   brightness, screenshots, reminders and timers, lock / sleep / shutdown (with spoken confirmation).
 - **Voice**: Microsoft neural voice (edge-tts, deep "Henri" voice, pitch/rate configurable) with an
   offline Windows voice fallback.
-- **Futuristic HUD** (HTML canvas in a WebView2 window, no Electron): a holographic man with a real 3D face (eyes that blink
-  and follow, mouth that speaks) who turns his head on command and lights up as he listens and speaks (or the glowing core: `hud.style` = `"orb"`), light waves,
+- **Futuristic HUD** (HTML canvas in a WebView2 window, no Electron): a muscular holographic android with a real 3D face
+  (armour-plate seams, glowing insignia, rotating iris rings, blinking eyes, speaking mouth), orbit rings, live
+  callouts, a hexagonal core, bloom, scanlines and glitches, who turns his head on command and lights up as he listens and speaks (or the glowing core: `hud.style` = `"orb"`), light waves,
   live voice waveform, 30 FPS cap, low power mode.
 - **Runs in the background** with a tray icon; single instance; restart / quit from the tray.
 

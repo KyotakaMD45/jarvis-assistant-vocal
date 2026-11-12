@@ -187,6 +187,7 @@
       this.lowPower = false;
       this.gazeX = 0; this.gazeY = 0; this.sacX = 0; this.sacY = 0;
       this.nextSaccade = 0; this.nextBlink = 2; this.blinkAt = -9; this.blink = 0;
+      this.nextGlitch = 4; this.glitchUntil = 0; this.lastState = "boot";
     }
 
     // ---------------------------------------------------------------------------------------
@@ -205,6 +206,21 @@
       this.buildBody();
       this.buildSprites();
       this.buildHead();
+      this.font = (getComputedStyle(document.documentElement).getPropertyValue("--mono") || "").trim() || "monospace";
+      const cw = this.canvas.width, ch = this.canvas.height;
+      // Bloom only around the head (the focal point): about 7x cheaper than the whole canvas.
+      const bs = this.s;
+      this.bloomBox = [Math.max(0, Math.round(this.cx - 0.24 * bs)), 0, Math.round(0.48 * bs), Math.round(0.46 * bs)];
+      this.bloom = document.createElement("canvas");
+      this.bloom.width = Math.max(2, this.bloomBox[2] >> 2); this.bloom.height = Math.max(2, this.bloomBox[3] >> 2);
+      this.bloomFrame = 0;
+      this.fx = document.createElement("canvas");
+      this.fx.width = cw; this.fx.height = ch;
+      const sl = document.createElement("canvas");
+      sl.width = 2; sl.height = 3;
+      const slg = sl.getContext("2d");
+      slg.fillStyle = "#000"; slg.fillRect(0, 2, 2, 1);
+      this.scanPattern = this.g.createPattern(sl, "repeat");
     }
 
     P(x, y) { return [this.cx + x * this.s, y * this.s]; }
@@ -572,6 +588,30 @@
       g.globalAlpha = Math.min(1, 0.55 + voice * 0.8) * this.glow;
       g.drawImage(core, cx - core.width * coreScale / 2, 0.585 * s - core.height * coreScale / 2, core.width * coreScale, core.height * coreScale);
 
+      // Hexagonal power core: two counter-rotating hexagons + a ring of ticks, pulsing with the voice.
+      {
+        const ccy = 0.6 * s, R0 = (0.026 + voice * 0.012 + (this.state === "thinking" ? 0.004 * Math.sin(t * 8) : 0)) * s;
+        const hex = (r, a0) => {
+          const p = new Path2D();
+          for (let k = 0; k <= 6; k++) {
+            const a = a0 + k * TAU / 6;
+            if (k === 0) p.moveTo(cx + Math.cos(a) * r, ccy + Math.sin(a) * r); else p.lineTo(cx + Math.cos(a) * r, ccy + Math.sin(a) * r);
+          }
+          return p;
+        };
+        const h1 = hex(R0, t * 0.5), h2 = hex(R0 * 0.6, -t * 0.8);
+        g.lineWidth = Math.max(1, 0.0022 * s);
+        g.globalAlpha = 0.3 * this.glow; g.strokeStyle = "rgba(80,170,255,1)"; g.lineWidth = Math.max(2, 0.008 * s); g.stroke(h1);
+        g.globalAlpha = 0.9 * this.glow; g.strokeStyle = "rgba(210,240,255,1)"; g.lineWidth = Math.max(1, 0.002 * s); g.stroke(h1); g.stroke(h2);
+        g.globalAlpha = 0.55 * this.glow;
+        g.beginPath();
+        for (let k = 0; k < 24; k++) {
+          const a = k * TAU / 24 - t * 0.3, r1 = R0 * 1.45, r2 = R0 * (k % 6 === 0 ? 1.85 : 1.6);
+          g.moveTo(cx + Math.cos(a) * r1, ccy + Math.sin(a) * r1); g.lineTo(cx + Math.cos(a) * r2, ccy + Math.sin(a) * r2);
+        }
+        g.stroke();
+      }
+
       // Sparkles drifting upward.
       if (!this.lowPower) {
         for (const p of this.sparks) {
@@ -584,8 +624,9 @@
       }
 
       this.drawHead(t, voice);
-      g.globalAlpha = 1;
-      g.globalCompositeOperation = "source-over";
+      g.globalCompositeOperation = "lighter";
+      this.drawCallouts(t, voice);
+      this.postFX(t);
     }
 
     // ---- 3D head ---------------------------------------------------------------------------
@@ -707,6 +748,8 @@
         g.stroke();
       }
 
+      this.drawOrbits(t, voice, false, cx + hx * s, hy, HS);
+
       // Silhouette = smoothed convex hull of the projected mesh; dark visor fill.
       const hidx = convexHull(X, Y, n);
       const m = hidx.length;
@@ -754,6 +797,19 @@
       g.lineWidth = Math.max(0.7, 0.0015 * s);
       g.strokeStyle = "rgba(150,185,255,1)";
       for (let b = 0; b < B; b++) { g.globalAlpha = HAIR_A[b] * glow; g.stroke(strands[b]); }
+
+      // Point cloud: twinkling light points on the mesh vertices.
+      if (!this.lowPower) {
+        g.fillStyle = "rgba(200,235,255,1)";
+        const ps = Math.max(1, 0.0016 * s);
+        for (let v = 0; v < n; v += 2) {
+          const f = F[v];
+          if (f < 0.12) continue;
+          const tw = 0.5 + 0.5 * Math.sin(t * 2.3 + v * 1.37);
+          g.globalAlpha = glow * (0.12 + 0.45 * (1 - f) + 0.3 * tw) * (hair[v] > 0.5 ? 0.6 : 0.8);
+          g.fillRect(X[v] - ps / 2, Y[v] - ps / 2, ps, ps);
+        }
+      }
 
       // Rim light.
       g.globalAlpha = 0.28 * glow; g.lineWidth = rimW * 5; g.strokeStyle = "rgba(80,140,255,1)"; g.stroke(sil);
@@ -836,6 +892,23 @@
             g.beginPath();
             g.arc(c[0], c[1], r * 0.35, 0, TAU);
             g.fill();
+            // Futuristic iris: rotating segmented ring + horizontal lens flare.
+            const rr = r * 1.6, sq = Math.max(0.3, Math.min(1, c[3] * 1.2));
+            g.lineWidth = Math.max(0.8, fw * 0.55);
+            for (let k = 0; k < 6; k++) {
+              const a0 = t * (1.1 + listen * 1.5) * side + k * TAU / 6;
+              g.beginPath();
+              g.ellipse(c[0], c[1], rr * sq, rr, 0, a0, a0 + TAU / 13);
+              g.stroke();
+            }
+            const fl = (0.03 + voice * 0.035 + listen * 0.012) * s;
+            const flare = g.createLinearGradient(c[0] - fl, 0, c[0] + fl, 0);
+            flare.addColorStop(0, "rgba(80,170,255,0)");
+            flare.addColorStop(0.5, err ? "rgba(255,150,130,0.95)" : "rgba(180,230,255,0.95)");
+            flare.addColorStop(1, "rgba(80,170,255,0)");
+            g.globalAlpha = vis * bright * glow * 0.6;
+            g.fillStyle = flare;
+            g.fillRect(c[0] - fl, c[1] - 0.0008 * s, fl * 2, 0.0016 * s);
           }
         }
         // Nose side, cheekbone, smile line, jaw line.
@@ -864,6 +937,40 @@
       stroke([[-0.022, 0.087 + open * 0.8], [0, 0.0965 + open], [0.022, 0.087 + open * 0.8]], 0.42, fw * 0.85);
       stroke([[-0.02, 0.128], [0, 0.1335], [0.02, 0.128]], 0.2, fw * 0.8);
 
+      // Cyber panel seams: the face is made of plates (forehead, cheeks, chin) with glowing joints.
+      const seamHalo = "rgba(70,200,255,1)", seamCore = "rgba(200,245,255,1)";
+      stroke([[0, -0.138], [0, -0.115], [0, -0.092]], 0.55, fw * 0.7, seamHalo, seamCore);
+      for (const side of [-1, 1]) {
+        stroke([[side * 0.012, -0.05], [side * 0.045, -0.056], [side * 0.072, -0.063], [side * 0.084, -0.086], [side * 0.082, -0.112]], 0.5, fw * 0.65, seamHalo, seamCore);
+        stroke([[side * 0.062, -0.004], [side * 0.072, 0.02], [side * 0.077, 0.05], [side * 0.085, 0.075], [side * 0.09, 0.095]], 0.55, fw * 0.65, seamHalo, seamCore);
+        stroke([[side * 0.026, 0.006], [side * 0.043, 0.008], [side * 0.06, 0.002]], 0.32, fw * 0.55, seamHalo, seamCore);
+        stroke([[side * 0.027, 0.06], [side * 0.038, 0.088], [side * 0.035, 0.117], [side * 0.017, 0.132], [0, 0.137]], 0.45, fw * 0.6, seamHalo, seamCore);
+      }
+      const sparkle = this.sparkSprite;
+      const nodes = [[0, -0.092], [-0.072, -0.063], [0.072, -0.063], [-0.062, -0.004], [0.062, -0.004], [-0.09, 0.095], [0.09, 0.095], [0, 0.137]];
+      for (let k = 0; k < nodes.length; k++) {
+        const nd = face(nodes[k][0], nodes[k][1], 0.002);
+        const v = Math.min(1, Math.max(0, nd[3] * 2.2));
+        if (v < 0.05) continue;
+        g.globalAlpha = v * glow * (0.3 + 0.7 * Math.abs(Math.sin(t * 2.4 + k * 1.7)));
+        g.drawImage(sparkle, nd[0] - sparkle.width * 0.45, nd[1] - sparkle.height * 0.45, sparkle.width * 0.9, sparkle.height * 0.9);
+      }
+      // Forehead insignia: a glowing diamond, brighter with activity.
+      {
+        const act = Math.min(1, 0.4 + listen * 0.4 + voice + (this.state === "thinking" ? 0.5 * (0.5 + 0.5 * Math.sin(t * 6)) : 0));
+        const dia = [[0, -0.087], [0.009, -0.076], [0, -0.065], [-0.009, -0.076]].map(([x, y]) => face(x, y, 0.002));
+        const dv = Math.min(1, Math.max(0, dia[0][3] * 2));
+        if (dv > 0.05) {
+          const dp = new Path2D();
+          dp.moveTo(dia[0][0], dia[0][1]);
+          for (let k = 1; k < 4; k++) dp.lineTo(dia[k][0], dia[k][1]);
+          dp.closePath();
+          g.globalAlpha = dv * glow * act * 0.35; g.lineWidth = fw * 3; g.strokeStyle = "rgba(80,200,255,1)"; g.stroke(dp);
+          g.globalAlpha = dv * glow * act * 0.5; g.fillStyle = "rgba(120,210,255,1)"; g.fill(dp);
+          g.globalAlpha = dv * glow * act; g.lineWidth = fw * 0.8; g.strokeStyle = "rgba(225,250,255,1)"; g.stroke(dp);
+        }
+      }
+
       // Ears (more visible on the side turned towards the viewer).
       g.lineWidth = fw * 0.9;
       for (const side of [-1, 1]) {
@@ -880,6 +987,152 @@
         g.globalAlpha = 0.22 * vis * glow; g.lineWidth = fw * 3; g.strokeStyle = "rgba(90,160,255,1)"; g.stroke(path);
         g.globalAlpha = 0.75 * vis * glow; g.lineWidth = fw * 0.9; g.strokeStyle = "rgba(220,238,255,1)"; g.stroke(path);
       }
+      this.drawOrbits(t, voice, true, cx + hx * s, hy, HS);
+    }
+
+    // Two 3D rings around the head (a halo above it, a collar around the neck). Their back half is
+    // drawn before the head, their front half after it. The collar's ticks react to the voice.
+    drawOrbits(t, voice, front, ox, hy, HS) {
+      const { g, s } = this;
+      const rings = [
+        { y: 0.0, R: 0.195, tilt: 1.02, roll: 0.28, speed: 0.35, seg: 16, on: 0.6, w: 1.1, ticks: false },
+        { y: 0.2, R: 0.21, tilt: 0.2, roll: 0, speed: -0.22, seg: 36, on: 0.42, w: 0.9, ticks: true },
+      ];
+      const N = this.lowPower ? 64 : 120;
+      for (const ring of rings) {
+        const ct = Math.cos(ring.tilt), st = Math.sin(ring.tilt), cr = Math.cos(ring.roll), sr = Math.sin(ring.roll);
+        const oy = (hy + ring.y * HS) * s;
+        const pts = [];
+        for (let i = 0; i <= N; i++) {
+          const a = (i / N) * TAU + t * ring.speed;
+          const x = Math.cos(a) * ring.R, z = Math.sin(a) * ring.R;
+          const px = x * HS * s, py = z * st * HS * s;
+          pts.push([ox + px * cr - py * sr, oy + px * sr + py * cr, z * ct, i]);
+        }
+        const path = new Path2D();
+        for (let i = 0; i < N; i++) {
+          const a = pts[i], b = pts[i + 1];
+          if ((a[2] >= 0) !== front) continue;
+          if (((i / N) * ring.seg) % 1 > ring.on) continue;
+          path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]);
+        }
+        const alpha = (front ? 0.85 : 0.3) * this.glow;
+        g.globalAlpha = alpha * 0.3; g.lineWidth = ring.w * Math.max(2, 0.006 * s); g.strokeStyle = "rgba(70,170,255,1)"; g.stroke(path);
+        g.globalAlpha = alpha; g.lineWidth = ring.w * Math.max(0.8, 0.0018 * s); g.strokeStyle = "rgba(200,238,255,1)"; g.stroke(path);
+        if (ring.ticks) {   // audio-reactive ticks pointing outward
+          const tp = new Path2D();
+          for (let i = 0; i < N; i += 3) {
+            const a = pts[i];
+            if ((a[2] >= 0) !== front) continue;
+            const dx = a[0] - ox, dy = a[1] - oy, l = Math.hypot(dx, dy) || 1;
+            const amp = (0.004 + voice * 0.03 * (0.4 + 0.6 * Math.abs(Math.sin(i * 1.7 + t * 9)))) * s;
+            tp.moveTo(a[0], a[1]); tp.lineTo(a[0] + dx / l * amp, a[1] + dy / l * amp * 0.6);
+          }
+          g.globalAlpha = alpha * 0.7; g.lineWidth = Math.max(0.8, 0.0015 * s); g.stroke(tp);
+        }
+        // A light running along the ring.
+        const ang = t * (ring.speed * 3 + 0.6);
+        const sx = Math.cos(ang) * ring.R, sz = Math.sin(ang) * ring.R;
+        if ((sz * ct >= 0) === front) {
+          const sp = this.sparkSprite;
+          g.globalAlpha = (front ? 1 : 0.4) * this.glow;
+          const px = sx * HS * s, py = sz * st * HS * s;
+          g.drawImage(sp, ox + px * cr - py * sr - sp.width / 2, oy + px * sr + py * cr - sp.height / 2);
+        }
+      }
+    }
+
+    // Holographic labels with leader lines (state + voice meter).
+    drawCallouts(t, voice) {
+      const { g, s, cx } = this;
+      const fs = Math.max(10, Math.round(0.019 * s));
+      g.font = `600 ${fs}px ${this.font}`;
+      g.textBaseline = "middle";
+      const STATE = { idle: "STANDBY", listening: "LISTENING", thinking: "PROCESSING", speaking: "SPEAKING",
+        error: "ERROR", paused: "PAUSED", boot: "BOOTING" };
+      const col = this.state === "error" ? "rgba(255,140,120,1)" : "rgba(120,215,255,1)";
+      const leader = (ax, ay, ex, ey, lx) => {
+        g.globalAlpha = 0.55 * this.glow; g.strokeStyle = col; g.lineWidth = Math.max(0.8, 0.0012 * s);
+        g.beginPath(); g.moveTo(ax, ay); g.lineTo(ex, ey); g.lineTo(lx, ey); g.stroke();
+        g.globalAlpha = 0.9 * this.glow; g.fillStyle = col;
+        g.beginPath(); g.arc(ax, ay, Math.max(1.5, 0.003 * s), 0, TAU); g.fill();
+      };
+      // Left: neural core state.
+      const lx = cx - 0.42 * s, ly = 0.12 * s;
+      leader(cx - 0.13 * s, 0.16 * s, cx - 0.22 * s, ly, lx + 0.16 * s);
+      g.globalAlpha = 0.8 * this.glow; g.fillStyle = col; g.textAlign = "left";
+      g.fillText("NEURAL CORE", lx, ly - fs * 1.1);
+      g.globalAlpha = 0.95 * this.glow; g.fillStyle = "rgba(225,245,255,1)";
+      const dots = this.state === "thinking" ? " " + ".".repeat(1 + Math.floor(t * 3) % 3) : "";
+      g.fillText((STATE[this.state] || "ONLINE") + dots, lx, ly + fs * 0.1);
+      g.globalAlpha = 0.7 * this.glow; g.fillStyle = col;
+      g.fillText(`SYNC ${(98.2 + 1.4 * Math.sin(t * 0.7)).toFixed(1)}%`, lx, ly + fs * 1.3);
+      // Right: voice link with a live meter.
+      const rx = cx + 0.27 * s, ry = 0.3 * s;
+      leader(cx + 0.11 * s, 0.33 * s, cx + 0.22 * s, ry, rx);
+      g.globalAlpha = 0.8 * this.glow; g.fillStyle = col;
+      g.fillText("VOICE LINK", rx, ry - fs * 1.1);
+      for (let k = 0; k < 10; k++) {
+        const hgt = (0.15 + Math.min(1, voice * (0.6 + 0.6 * Math.abs(Math.sin(k * 2.1 + t * 11))))) * fs * 1.2;
+        g.globalAlpha = (0.35 + 0.6 * Math.min(1, voice * 2)) * this.glow;
+        g.fillRect(rx + k * fs * 0.45, ry + fs * 0.6 - hgt, fs * 0.28, hgt);
+      }
+      g.globalAlpha = 0.7 * this.glow;
+      g.fillText("FR · HENRI", rx, ry + fs * 1.4);
+    }
+
+    // Post effects: bloom (cheap, via a quarter-size copy), rare glitches, hologram scanlines.
+    postFX(t) {
+      const { g, canvas } = this;
+      const W = canvas.width, H = canvas.height;
+      g.globalCompositeOperation = "lighter";
+      if (!this.lowPower && this.bloom) {
+        const [bx, by, bw, bh] = this.bloomBox;
+        if ((this.bloomFrame++ & 1) === 0) {   // refreshed every other frame
+          const b = this.bloom.getContext("2d");
+          b.globalCompositeOperation = "copy";
+          b.drawImage(canvas, bx, by, bw, bh, 0, 0, this.bloom.width, this.bloom.height);
+        }
+        g.globalAlpha = 0.45 * this.glow;
+        g.drawImage(this.bloom, bx, by, bw, bh);
+      }
+      if (this.state !== this.lastState) {
+        if (this.state === "thinking" || this.state === "error") this.glitchUntil = t + 0.18;
+        this.lastState = this.state;
+      }
+      if (!this.lowPower && t > this.nextGlitch) {
+        this.glitchUntil = t + 0.1 + Math.random() * 0.12;
+        this.nextGlitch = t + 6 + Math.random() * 8;
+      }
+      if (t < this.glitchUntil && this.fx) {
+        const f = this.fx.getContext("2d");
+        f.globalCompositeOperation = "copy";
+        f.drawImage(canvas, 0, 0);
+        g.globalCompositeOperation = "source-over";
+        g.globalAlpha = 1;
+        for (let k = 0; k < 5; k++) {
+          const y = (0.02 + Math.random() * 0.55) * H, h = (0.004 + Math.random() * 0.018) * H;
+          const dx = (Math.random() - 0.5) * 0.05 * W;
+          g.clearRect(0, y, W, h);
+          g.drawImage(this.fx, 0, y, W, h, dx, y, W, h);
+        }
+        g.globalCompositeOperation = "lighter";
+        g.globalAlpha = 0.22;
+        g.drawImage(this.fx, -0.004 * W, 0);
+        g.drawImage(this.fx, 0.004 * W, 0);
+      }
+      // Scanlines (slowly scrolling) and a faint flicker.
+      if (this.scanPattern) {
+        g.globalCompositeOperation = "destination-out";
+        g.globalAlpha = 0.2 + (Math.random() < 0.03 ? 0.15 : 0);
+        g.save();
+        g.translate(0, (t * 18) % 3);
+        g.fillStyle = this.scanPattern;
+        g.fillRect(0, -3, W, H + 3);
+        g.restore();
+      }
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = "source-over";
     }
   }
 
