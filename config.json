@@ -3,7 +3,7 @@
   "language": "fr-FR",
   "log_level": "INFO",
   "ai": {
-    "provider": "claude",
+    "provider": "groq",
     "max_tokens": 2048,
     "timeout_seconds": 10,
     "max_retries": 1,
