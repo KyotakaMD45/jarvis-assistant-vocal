@@ -34,13 +34,17 @@
     }
   },
   "voice": {
-    "voice": "fr-FR-RemyMultilingualNeural",
+    "voice": "fr-FR-HenriNeural",
     "pitch": "-30Hz",
     "rate": "-8%",
     "volume": "+0%",
     "offline_rate": 165,
     "offline_language": "fr",
-    "test_sentence": "Bonsoir monsieur. Knull est en ligne, tous les systèmes sont opérationnels. All systems online."
+    "test_sentence": "Bonsoir monsieur. Knull est en ligne, tous les systèmes sont opérationnels. All systems online.",
+    "voice_en": "en-GB-RyanNeural",
+    "pitch_en": "-20Hz",
+    "rate_en": "-6%",
+    "offline_fallback": false
   },
   "listening": {
     "wake_words": [
@@ -60,7 +64,10 @@
     "languages": [
       "fr",
       "en"
-    ]
+    ],
+    "min_level_follow": 22,
+    "min_level_wake": 12,
+    "voice_match_threshold": 0.3
   },
   "hud": {
     "enabled": true,

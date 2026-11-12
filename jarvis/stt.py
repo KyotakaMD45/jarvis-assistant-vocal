@@ -94,6 +94,17 @@ class Listener:
         self.transcriber = None   # optional cloud speech-to-text (cloud_stt.GroqWhisper)
         self.last_alternative: str | None = None  # offline transcript of the last sentence
         self.status_error = ""
+        # Background noise: sentences quieter than this (percent of full scale) are ignored when the
+        # name was not said (follow-up, yes/no), or below the second value while waiting for the name.
+        self.min_level_follow = float(self.cfg.get("min_level_follow", 22))
+        self.min_level_wake = float(self.cfg.get("min_level_wake", 12))
+        # Voice print: sentences clearly spoken by another voice are ignored (see enroll in voice.py).
+        self.voice_threshold = float(self.cfg.get("voice_match_threshold", 0.30))
+        self._spk_model = None
+        self.voiceprint: list[float] | None = None
+        self.collect_voice = False                # enrollment: keep the embedding of each sentence
+        self.last_spk: tuple[list[float], int] = ([], 0)
+        self.last_audio = b""
 
     # -- microphone ----------------------------------------------------------------------
     def open(self, use_microphone: bool = True) -> None:
@@ -109,6 +120,7 @@ class Listener:
             # general model (87% vs 50% in tests), but with false alarms, so Whisper confirms them.
             words = [("null" if w == "knull" else w) for w in self.wake_words if " " not in w] or ["jarvis"]
             self._wake_rec = vosk.KaldiRecognizer(self._model, SAMPLE_RATE, json.dumps(words + ["[unk]"]))
+        self.load_voice()
         nbest = int(self.cfg.get("wake_nbest", 0))
         if nbest > 1:
             # Keep the N best guesses: "Jarvis" is often among them even when the top guess is wrong.
@@ -182,6 +194,70 @@ class Listener:
         if getattr(self, "_injected", False):
             return True
         return self._stream is not None and self._stream.active
+
+    # -- voice print -----------------------------------------------------------------------
+    VOICEPRINT = ROOT / "voiceprint.json"
+
+    def load_voice(self) -> None:
+        """Load the speaker model (models/vosk-model-spk-0.4) and the owner's voice print, if any."""
+        import vosk
+
+        path = ROOT / "models" / "vosk-model-spk-0.4"
+        if path.exists() and self._spk_model is None:
+            try:
+                self._spk_model = vosk.SpkModel(str(path))
+            except Exception:  # noqa: BLE001
+                log.exception("Speaker model failed to load")
+        try:
+            data = json.loads(self.VOICEPRINT.read_text(encoding="utf-8"))
+            self.voiceprint = data.get("vector") or None
+        except (OSError, ValueError):
+            self.voiceprint = None
+        log.info("Voice print: %s", "enrolled" if self.voiceprint else "none (say 'apprends ma voix')")
+
+    def save_voiceprint(self, vectors: list[list[float]]) -> None:
+        mean = [sum(c) / len(vectors) for c in zip(*vectors)]
+        self.VOICEPRINT.write_text(json.dumps({"vector": mean, "samples": len(vectors)}), encoding="utf-8")
+        self.voiceprint = mean
+
+    def forget_voiceprint(self) -> None:
+        self.VOICEPRINT.unlink(missing_ok=True)
+        self.voiceprint = None
+
+    def embed(self, audio: bytes) -> tuple[list[float], int]:
+        if self._spk_model is None or not audio:
+            return [], 0
+        import vosk
+
+        rec = vosk.KaldiRecognizer(self._model, SAMPLE_RATE)
+        rec.SetSpkModel(self._spk_model)
+        rec.AcceptWaveform(audio)
+        res = json.loads(rec.FinalResult())
+        return res.get("spk") or [], int(res.get("spk_frames") or 0)
+
+    @staticmethod
+    def similarity(a: list[float], b: list[float]) -> float:
+        import math
+
+        na, nb = math.sqrt(sum(x * x for x in a)), math.sqrt(sum(y * y for y in b))
+        return sum(x * y for x, y in zip(a, b)) / (na * nb) if na and nb else 0.0
+
+    def _accept(self, text: str, audio: bytes, peak_percent: float, named: bool) -> bool:
+        """Background noise filter: too quiet, or clearly not the owner's voice -> ignore."""
+        floor = self.min_level_wake if named else self.min_level_follow
+        if peak_percent < floor:
+            log.info("Ignored (too quiet for a command, %.0f%% < %.0f%%): %r", peak_percent, floor, text)
+            return False
+        if self._spk_model is not None and (self.voiceprint or self.collect_voice):
+            vec, frames = self.embed(audio)
+            self.last_spk = (vec, frames)
+            if self.voiceprint and vec and frames >= 80:  # short words carry too little voice
+                sim = self.similarity(self.voiceprint, vec)
+                if sim < self.voice_threshold:
+                    log.info("Ignored: another voice (similarity %.2f): %r", sim, text)
+                    return False
+                log.info("Voice check ok (similarity %.2f)", sim)
+        return True
 
     # -- recognition ---------------------------------------------------------------------
     # What the offline model often hears instead of "Jarvis" (seen in real use). Only used
@@ -385,6 +461,9 @@ class Listener:
                     continue
                 peak = max((abs(s) for s in array.array("h", audio[: len(audio) - len(audio) % 2])[::8]), default=0)
                 log.info("Heard: %r (peak level %.0f%%)", text, peak / 327.68)
+                self.last_audio = audio
+                if not self._accept(text, audio, peak / 327.68, named=require_wake):
+                    continue
                 vosk_wake, vosk_after = self._split_wake(text)
                 cloud = self.transcriber if (self.transcriber is not None and self.transcriber.available()) else None
                 grammar_hit = False
@@ -508,7 +587,9 @@ class Listener:
                             continue  # empty result right after the trigger: keep listening
                         final_text = " ".join(x for x in (final_text, text) if x) or last_partial
                         break
-                    if text and not is_echo(text.split()):
+                    loud = max((abs(v) for c in chunks[-20:] for v in array.array("h", c[: len(c) - len(c) % 2])[::16]),
+                               default=0) / 327.68 >= self.min_level_follow
+                    if text and loud and not is_echo(text.split()):
                         triggered, trigger_time, final_text = True, time.monotonic(), text
                         on_trigger()
                         break
@@ -519,7 +600,9 @@ class Listener:
                         speech_start = len(chunks) - 1
                     if partial and triggered:
                         last_partial = partial
-                    if partial and not triggered and not is_echo(partial.split()):
+                    loud = max((abs(v) for c in chunks[-8:] for v in array.array("h", c[: len(c) - len(c) % 2])[::16]),
+                               default=0) / 327.68 >= self.min_level_follow
+                    if partial and not triggered and loud and not is_echo(partial.split()):
                         triggered, trigger_time, last_partial = True, time.monotonic(), partial
                         log.info("Barge-in: %r", partial)
                         on_trigger()

@@ -687,7 +687,14 @@ class VoiceAssistant:
             self._alternative = self.listener.last_alternative
             stt = getattr(self.listener, "transcriber", None)
             self._turn_lang = guess_language(item[1], getattr(stt, "last_language", None))
+            self._speak_language()
+        elif item is not None:
+            self._turn_lang = "fr"  # announcements (reminders) are written in French
+            self._speak_language()
         return item
+
+    def _speak_language(self) -> None:
+        self.speaker.language = getattr(self, "_turn_lang", "fr")
 
     def _localize(self, text: str | None) -> str | None:
         """Action messages are written in French; say them in English when the user spoke English."""
@@ -720,6 +727,9 @@ class VoiceAssistant:
             self._status_line(f"  [listening for a follow-up, {self.follow_up_seconds:.0f}s...]")
             text = self.listener.listen(require_wake=False, timeout=self.follow_up_seconds,
                                         on_partial=self._on_partial, should_stop=self._interrupted)
+            if text and self._is_own_echo(text):
+                log.info("Follow-up ignored (Knull's own voice picked up by the microphone): %r", text)
+                return None
             if text and self._is_filler(text):
                 # "ok", "ouais je vois", "merci"... said to Jarvis or to someone else: end the follow-up.
                 log.info("Follow-up ignored (filler): %r", text)
@@ -730,6 +740,51 @@ class VoiceAssistant:
             text = self.listener.listen(on_wake=self._on_wake, on_partial=self._on_partial,
                                         should_stop=self._interrupted)
         return ("command", text) if text else None
+
+    def _is_own_echo(self, text: str) -> bool:
+        """The microphone caught the end of Knull's own answer ("Monsieur, avez…")."""
+        last = set(simple(self._last_answer or "").split())
+        words = [w for w in simple(text).split() if len(w) > 1]
+        if not last or not words:
+            return False
+        return sum(w in last for w in words) / len(words) >= 0.7
+
+    def enroll_voice(self) -> str:
+        """Learn the owner's voice: four sentences -> voiceprint.json. Then other voices are ignored."""
+        if self.listener._spk_model is None:
+            return "Le modèle de reconnaissance de voix n'est pas installé."
+        sentences = ["Bonjour Knull, c'est moi, ton propriétaire.", "Ouvre WhatsApp et envoie un message à mon ami.",
+                     "Quelle heure est-il, et quel temps fait-il aujourd'hui ?", "Baisse le volume et mets un peu de musique."]
+        vectors = []
+        self.say("Je vais apprendre votre voix, monsieur. Répétez chaque phrase après moi, à votre distance habituelle.")
+        self.listener.collect_voice = True
+        saved = self.listener.voiceprint
+        self.listener.voiceprint = None  # accept any voice while learning
+        try:
+            for sentence in sentences:
+                self.say(sentence)
+                self._set_state("listening")
+                self.listener.unmute()
+                try:
+                    heard = self.listener.listen(require_wake=False, timeout=9, on_partial=self._on_partial,
+                                                 should_stop=lambda: self._stop.is_set())
+                finally:
+                    self.listener.mute()
+                vec, frames = self.listener.last_spk
+                if heard and vec and frames >= 60:
+                    vectors.append(vec)
+        finally:
+            self.listener.collect_voice = False
+            self.listener.voiceprint = saved
+        if len(vectors) < 3:
+            return "Je n'ai pas assez bien entendu. Recommencez dans un endroit calme : dites « apprends ma voix »."
+        self.listener.save_voiceprint(vectors)
+        log.info("Voice print saved from %d sentences", len(vectors))
+        return "Votre voix est enregistrée, monsieur. J'ignorerai désormais les voix qui ne sont pas la vôtre."
+
+    def forget_voice(self) -> str:
+        self.listener.forget_voiceprint()
+        return "C'est fait, je n'utilise plus d'empreinte vocale."
 
     FILLERS = {"ok", "okay", "oui", "ouais", "ouai", "non", "d accord", "merci", "merci beaucoup", "hum", "hmm", "ah",
                "oh", "bon", "bah", "ben", "je vois", "ouais je vois", "oui je vois", "c est bon", "super", "cool",

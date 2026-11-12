@@ -287,6 +287,8 @@ class Speaker:
         threading.Thread(target=self._loop.run_forever, name="tts-loop", daemon=True).start()
         # edge-tts (and aiohttp) take ~2 s to import: the session is created on first use.
         self._edge_obj: EdgeSession | None = None
+        self._edge_en_obj: EdgeSession | None = None   # English voice (answers in English)
+        self.language = "fr"                            # set by the assistant for each turn
         self._edge_error = ""
         self._edge_created = False
         self._edge_lock = threading.Lock()
@@ -310,6 +312,20 @@ class Speaker:
                     self._edge_error = f"invalid voice settings: {exc}"
                     log.error("edge-tts disabled: %s", self._edge_error)
             return self._edge_obj
+
+    def _edge_for(self, language: str) -> EdgeSession | None:
+        """The French voice, or the English one for answers in English (if configured)."""
+        if language == "en" and self.cfg.get("voice_en"):
+            if self._edge_en_obj is None:
+                v = self.cfg
+                try:
+                    self._edge_en_obj = EdgeSession(v["voice_en"], v.get("rate_en", v["rate"]),
+                                                    v.get("pitch_en", v["pitch"]), v["volume"])
+                except Exception as exc:  # noqa: BLE001
+                    log.error("English voice disabled: %r", exc)
+                    return self._edge
+            return self._edge_en_obj
+        return self._edge
 
     # -- helpers -------------------------------------------------------------------
     def _run(self, coro, timeout: float):
@@ -377,12 +393,16 @@ class Speaker:
                 yield chunk
 
         player: Mp3StreamPlayer | None = None
-        engine = "edge" if self.edge_usable() else "offline"
+        fallback = bool(self.cfg.get("offline_fallback", False))
+        engine = "edge" if (self.edge_usable() or not fallback) else "offline"
+        edge = self._edge_for(self.language) or self._edge
         error: BaseException | None = None
         try:
             for sentence in iter_sentences(tee(chunks)):
                 if self._stop.is_set():
                     break
+                if not any(ch.isalnum() for ch in sentence):
+                    continue
                 if engine == "edge":
                     if player is None:
                         player = Mp3StreamPlayer(self.output_device)
@@ -395,14 +415,18 @@ class Speaker:
                         _p.feed(data)
 
                     try:
-                        self._run(self._edge.synth(sentence, on_audio), CONNECT_TIMEOUT * 2 + RECEIVE_TIMEOUT * 3)
+                        self._run(edge.synth(sentence, on_audio), CONNECT_TIMEOUT * 2 + RECEIVE_TIMEOUT * 3)
                         continue
                     except Exception as exc:  # noqa: BLE001
                         log.info("edge-tts persistent connection failed (%r), using a fresh connection", exc)
                     try:
-                        self._run(self._edge.synth_fresh(sentence, on_audio), 20)
+                        self._run(edge.synth_fresh(sentence, on_audio), 20)
                         continue
                     except Exception as exc:  # noqa: BLE001
+                        if not fallback:
+                            # No other voice: the text stays on screen; try again with the next sentence.
+                            log.warning("edge-tts could not say %r (%r); text shown only", sentence[:60], exc)
+                            continue
                         log.warning("edge-tts failed, switching to the offline voice: %r", exc)
                         self._offline_until = time.monotonic() + OFFLINE_COOLDOWN
                         engine = "offline"

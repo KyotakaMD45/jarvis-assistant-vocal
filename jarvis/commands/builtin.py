@@ -19,6 +19,18 @@ def goodbye(ctx: CommandContext, args: dict) -> str:
     return "À votre service, monsieur."
 
 
+def learn_voice(ctx: CommandContext, args: dict) -> str:
+    if ctx.assistant is None:
+        return "Disponible seulement en mode vocal."
+    return ctx.assistant.enroll_voice()
+
+
+def forget_voice(ctx: CommandContext, args: dict) -> str:
+    if ctx.assistant is None:
+        return "Disponible seulement en mode vocal."
+    return ctx.assistant.forget_voice()
+
+
 def restart_jarvis(ctx: CommandContext, args: dict) -> str:
     if ctx.assistant is not None:
         ctx.assistant.request_restart()
@@ -80,6 +92,10 @@ COMMANDS = [
             patterns=[r"^(?:(?:ok |bon |merci |je (?:te )?dis )*au revoir|bonne nuit|bye(?: bye)?|a plus tard|a plus|a la prochaine|goodbye|good night|see you)(?: jarvis| apex| knull| null| nul)?$"]),
     Command(name="restart_jarvis", description="Restart Jarvis.", run=restart_jarvis, ai_tool=False, priority=100,
             patterns=[r"^(?:redemarre[ -]toi|redemarrez[ -]vous|relance[ -]toi|redemarre jarvis|relance jarvis|redemarre apex|relance apex|redemarre knull|relance knull|reboot|restart)$"]),
+    Command(name="learn_voice", description="Learn the owner's voice.", run=learn_voice, ai_tool=False, priority=100,
+            patterns=[r"^(?:apprends|apprend|enregistre|memorise|reconnais) ma voix$|^learn my voice$"]),
+    Command(name="forget_voice", description="Forget the owner's voice print.", run=forget_voice, ai_tool=False,
+            priority=100, patterns=[r"^(?:oublie|efface|supprime) ma voix$|^forget my voice$"]),
     Command(name="cancel", description="Cancel / never mind.", run=cancel, ai_tool=False, priority=100,
             patterns=[r"^(?:stop|annule|annuler|laisse tomber|rien|tais[ -]toi|non merci|c'est bon|oublie)$"]),
     Command(name="reset_conversation", description="Forget the conversation.", run=reset, ai_tool=False, priority=100,
