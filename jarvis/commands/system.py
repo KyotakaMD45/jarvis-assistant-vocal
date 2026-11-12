@@ -79,8 +79,7 @@ def system(ctx: CommandContext, args: dict) -> str:
 COMMANDS = [
     Command(
         name="system_control",
-        description="Control the computer: lock the session, sleep, shutdown, restart, cancel_shutdown, "
-                    "screenshot, battery level, brightness_up, brightness_down, set_brightness (level 5-100).",
+        description="Control the computer: lock, sleep, shutdown, restart, screenshot, battery level, brightness.",
         run=system,
         confirm=lambda args: CONFIRM.get(args.get("action")),
         patterns=[

@@ -79,19 +79,23 @@ class OpenAICompatProvider:
             converted.append({"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": params}})
         return converted
 
-    def _create(self, system: str, messages: list[dict], tools: list[dict] | None):
+    def _create(self, system: str, messages: list[dict], tools: list[dict] | None, model: str | None = None):
         kwargs = {
-            "model": self.model,
+            "model": model or self.model,
             "messages": [{"role": "system", "content": system}] + messages,
             "stream": True,
             self._token_param: int(self.ai["max_tokens"]),
         }
         if tools:
             kwargs["tools"] = self._tools(tools)
+        if self.cfg.get("reasoning_effort"):
+            kwargs["reasoning_effort"] = self.cfg["reasoning_effort"]  # fewer hidden tokens = faster, cheaper
         extra = self.cfg.get("extra_body")
         if isinstance(extra, dict) and extra:
             kwargs["extra_body"] = extra
-        return self.client.chat.completions.create(**kwargs)
+        # No silent SDK wait on "429 too many requests": the fallback model answers right away instead.
+        client = self.client.with_options(max_retries=0) if self.cfg.get("fallback_model") else self.client
+        return client.chat.completions.create(**kwargs)
 
     def stream(self, system: str, messages: list[dict], tools: list[dict] | None = None) -> Iterator[str]:
         import openai
@@ -101,7 +105,28 @@ class OpenAICompatProvider:
         calls: dict[int, dict] = {}
         try:
             try:
-                response = self._create(system, messages, tools)
+                try:
+                    response = self._create(system, messages, tools)
+                except openai.RateLimitError:
+                    # Free plans limit tokens per minute *per model*: another model answers at once.
+                    fallback = self.cfg.get("fallback_model")
+                    if not fallback or fallback == self.model:
+                        raise
+                    log.warning("%s rate limit on %s, using %s for this answer", self.label, self.model, fallback)
+                    try:
+                        response = self._create(system, messages, tools, model=fallback)
+                    except openai.RateLimitError as exc:
+                        # Both models busy: wait if the service asks for only a few seconds.
+                        import re
+                        import time
+
+                        m = re.search(r"try again in ([\d.]+)s", str(exc))
+                        wait = float(m.group(1)) if m else 99.0
+                        if wait > 8:
+                            raise
+                        log.warning("%s: both models rate-limited, waiting %.1fs", self.label, wait)
+                        time.sleep(wait + 0.3)
+                        response = self._create(system, messages, tools, model=fallback)
             except openai.BadRequestError as exc:
                 # Some newer OpenAI models only accept max_completion_tokens.
                 if "max_completion_tokens" in str(exc) and self._token_param == "max_tokens":

@@ -68,6 +68,10 @@ def type_text(ctx: CommandContext, args: dict) -> str | None:
         return "Ouvrez d'abord la fenêtre où je dois écrire."
     if pcctl.is_shell(hwnd):
         return "Par sécurité, je n'écris pas dans un terminal."
+    if pcctl.last_target_fresh and ctx.from_ai:
+        # App opened for this request (VS Code, Word...): write in a new document, not on its start page.
+        pcctl.send_combo("ctrl+n")
+        time.sleep(0.9)
     previous = pcctl.get_clipboard()
     if not pcctl.set_clipboard(text):
         return "Le presse-papier est occupé, réessayez."
@@ -90,14 +94,11 @@ _KEY = r"(?:appuie|appuyez|tape|presse|fais|fait)\s+(?:sur\s+)?(?:la touche\s+)?
 COMMANDS = [
     Command(
         name="keyboard_shortcut",
-        description="Press a keyboard shortcut in the active window: copy, paste, cut, undo, redo, select_all, save, "
-                    "new (new document/file), find, print, new_tab, close_tab, reopen_tab, next_tab, previous_tab, refresh, "
-                    "back, forward, zoom_in, zoom_out, zoom_reset, fullscreen, enter, escape, tab, backspace, delete, "
-                    "page_up, page_down, top, bottom, scroll_up, scroll_down.",
+        description="Press a keyboard shortcut or key in the active window (new = new document/file).",
         run=shortcut,
         patterns=[
-            (r"^(?:copie|copier|copiez)(?: ca| le texte| la selection| tout)?$", {"action": "copy"}),
-            (r"^(?:colle|coller|collez)(?: ca| le texte| ici)?$", {"action": "paste"}),
+            (r"^(?:copie|copier|copiez)(?: ca| sa| le texte| la selection| tout)?$", {"action": "copy"}),
+            (r"^(?:colle|coller|collez)(?: ca| sa| le texte| ici)?$", {"action": "paste"}),
             (r"^(?:coupe|couper|coupez) (?:ca|le texte|la selection)$", {"action": "cut"}),
             (r"^(?:annule la derniere action|annule ce que j'ai fait|ctrl z|controle z)$", {"action": "undo"}),
             (r"^(?:retablis|retablir|refais|ctrl y|controle y)$", {"action": "redo"}),
@@ -105,8 +106,8 @@ COMMANDS = [
             (r"^(?:enregistre|enregistrer|enregistrez|sauvegarde|sauvegarder|sauvegardez)(?: le fichier| le document| ca| tout)?$", {"action": "save"}),
             (r"^(?:cree|creer|ouvre) un nouveau (?:fichier|document)$|^nouveau (?:fichier|document)$", {"action": "new"}),
             (r"^(?:ouvre |ouvrir )?(?:un )?nouvel onglet$", {"action": "new_tab"}),
-            (r"^(?:ferme|fermer|fermez) (?:l'onglet|cet onglet|l onglet)$", {"action": "close_tab"}),
-            (r"^(?:rouvre|rouvrir|reouvre) (?:l'onglet|le dernier onglet)$", {"action": "reopen_tab"}),
+            (r"^(?:ferme|fermer|fermez) (?:l'onglet|cet onglet|l onglet|l'anglais|l anglais|l'onglais|longlet)$", {"action": "close_tab"}),
+            (r"^(?:rouvre|rouvrir|reouvre) (?:l'onglet|l'anglais|le dernier onglet)$", {"action": "reopen_tab"}),
             (r"^onglet suivant$", {"action": "next_tab"}),
             (r"^onglet precedent$", {"action": "previous_tab"}),
             (r"^(?:actualise|actualiser|rafraichis|rafraichir|recharge|recharger)(?: la page)?$", {"action": "refresh"}),

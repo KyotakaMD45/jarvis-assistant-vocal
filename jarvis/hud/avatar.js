@@ -32,12 +32,12 @@
     [-0.035, 0.100, 0.109, 0.126],
     [0.000, 0.099, 0.112, 0.120],
     [0.030, 0.097, 0.112, 0.106],
-    [0.060, 0.093, 0.110, 0.086],
-    [0.090, 0.086, 0.105, 0.062],
-    [0.110, 0.076, 0.100, 0.044],
-    [0.128, 0.060, 0.095, 0.028],
-    [0.142, 0.042, 0.089, 0.014],
-    [0.152, 0.024, 0.082, 0.004],
+    [0.060, 0.095, 0.110, 0.086],
+    [0.090, 0.091, 0.105, 0.062],
+    [0.110, 0.084, 0.100, 0.044],
+    [0.128, 0.068, 0.095, 0.028],
+    [0.142, 0.049, 0.089, 0.014],
+    [0.152, 0.031, 0.082, 0.004],
     [0.158, 0.000, 0.072, 0.000],
   ];
   const EXP = 2.4;   // superellipse exponent of the horizontal sections (flatter face than an ellipse)
@@ -108,6 +108,71 @@
     return lower.concat(upper);
   }
 
+
+  // ---- torso geometry (same units; y = 0.415 is the base of the neck) ----
+  // y -> [half-width, front depth]. Broad chest, V-taper to the waist.
+  const TORSO = [
+    [0.415, 0.068, 0.045],
+    [0.440, 0.140, 0.055],
+    [0.470, 0.235, 0.072],
+    [0.500, 0.290, 0.085],
+    [0.540, 0.312, 0.098],
+    [0.600, 0.315, 0.108],
+    [0.660, 0.306, 0.108],
+    [0.720, 0.290, 0.100],
+    [0.800, 0.262, 0.094],
+    [0.880, 0.242, 0.092],
+    [0.960, 0.234, 0.092],
+    [1.100, 0.238, 0.092],
+  ];
+
+  function torsoProfile(y) {
+    if (y <= TORSO[0][0]) return [TORSO[0][1], TORSO[0][2]];
+    for (let i = 1; i < TORSO.length; i++) {
+      const b = TORSO[i];
+      if (y <= b[0]) {
+        const a = TORSO[i - 1], k = (y - a[0]) / (b[0] - a[0]);
+        const e = k * k * (3 - 2 * k);
+        return [a[1] + (b[1] - a[1]) * e, a[2] + (b[2] - a[2]) * e];
+      }
+    }
+    const last = TORSO[TORSO.length - 1];
+    return [last[1], last[2]];
+  }
+
+  // Muscle relief of the front of the torso.
+  function torsoRelief(x, y) {
+    const ax = Math.abs(x);
+    let z = 0;
+    // Pectorals: thicker towards the lower border (the "shelf"), which rises towards the armpit.
+    const lower = 0.668 - 0.075 * (ax / 0.28) ** 2;
+    const t = (y - 0.48) / (lower - 0.48);
+    if (t > 0 && t < 1.08) {
+      const xf = smooth(0.004, 0.03, ax) * (1 - smooth(0.25, 0.3, ax));
+      z += 0.032 * Math.pow(Math.min(1, t), 0.65) * (1 - smooth(0.9, 1.06, t)) * xf;
+    }
+    z -= 0.006 * Math.exp(-((x / 0.012) ** 2)) * smooth(0.46, 0.5, y) * (1 - smooth(0.66, 0.7, y)); // sternum groove
+    z += 0.008 * Math.exp(-(((y - 0.466 - 0.0008 * (ax / 0.01) ** 1.2) / 0.007) ** 2)) * (1 - smooth(0.24, 0.29, ax)); // collarbones
+    // Six-pack: three rows of rounded blocks + the lower abs.
+    for (const yc of [0.735, 0.812, 0.893, 0.985]) {
+      const h = yc > 0.95 ? 0.009 : 0.013;
+      z += h * Math.exp(-((((ax - 0.05) / 0.036) ** 4) + (((y - yc) / (yc > 0.95 ? 0.05 : 0.031)) ** 4)));
+    }
+    z -= 0.004 * Math.exp(-((x / 0.006) ** 2)) * smooth(0.69, 0.72, y);              // linea alba
+    // Obliques and serratus.
+    z += 0.008 * Math.exp(-((((ax - 0.19) / 0.04) ** 2) + (((y - 0.86) / 0.07) ** 2)));
+    for (let k = 0; k < 3; k++) z += 0.004 * Math.exp(-((((ax - 0.235) / 0.016) ** 2) + (((y - 0.672 - k * 0.034) / 0.01) ** 2)));
+    return z;
+  }
+
+  // Depth of the front of the torso at (x, y).
+  function torsoZ(x, y) {
+    const [w, d] = torsoProfile(y);
+    const u = Math.min(1, Math.abs(x) / w);
+    const cz = Math.pow(1 - Math.pow(u, 2.6), 1 / 2.6);
+    return d * cz + torsoRelief(x, y) * smooth(0.1, 0.6, cz);
+  }
+
   class Avatar {
     constructor(canvas) {
       this.canvas = canvas;
@@ -144,123 +209,259 @@
 
     P(x, y) { return [this.cx + x * this.s, y * this.s]; }
 
-    // Static body: contours + energy filaments, rendered once.
+    // Static body: a muscular male torso + arms as a 3D hologram, rendered ONCE into two sprites:
+    // `shade` (dark solid silhouette, drawn normally) and `body` (light lines, drawn additively).
     buildBody() {
-      const { s } = this;
+      const { s, cx } = this;
+      const lp = this.lowPower;
+      const W = this.canvas.width, H = this.canvas.height;
+      const TILT = 0.3;                                   // camera slightly above: front bulges render lower
+      const scr = (x, y, z) => [cx + x * s, (y + z * TILT) * s];
+      this.flows = [];
+
+      // ---- geometry --------------------------------------------------------------------
+      const ARM = { a0: [0.345, 0.545], a1: [0.402, 1.07] };
+      const armLen = Math.hypot(ARM.a1[0] - ARM.a0[0], ARM.a1[1] - ARM.a0[1]);
+      const ad = [(ARM.a1[0] - ARM.a0[0]) / armLen, (ARM.a1[1] - ARM.a0[1]) / armLen];
+      const an = [ad[1], -ad[0]];                          // points outward (right arm)
+      const armR = (t) => {                                // radius along the arm (t<0 = shoulder cap)
+        if (t < 0) return 0.074 * Math.sqrt(Math.max(0, 1 - (t / 0.13) ** 2));
+        return 0.074 - 0.014 * smooth(0, 0.28, t) + 0.007 * Math.exp(-(((t - 0.42) / 0.12) ** 2))
+          - 0.012 * smooth(0.55, 0.78, t) + 0.004 * smooth(0.82, 1, t);
+      };
+      const armCenter = (side, t) => [side * (ARM.a0[0] + ad[0] * armLen * t), ARM.a0[1] + ad[1] * armLen * t];
+      // Is the torso point (x, y) hidden behind an arm?
+      const behindArm = (x, y) => {
+        const side = x < 0 ? -1 : 1;
+        const px = Math.abs(x) - ARM.a0[0], py = y - ARM.a0[1];
+        const t = (px * ad[0] + py * ad[1]) / armLen;
+        if (t < -0.13 || t > 1.05) return false;
+        const c = armCenter(1, t);
+        return Math.hypot(Math.abs(x) - c[0], y - c[1]) < armR(t) * 0.97 && side !== 0;
+      };
+
+      // ---- dark silhouette (shade sprite) -----------------------------------------------
+      const shade = document.createElement("canvas");
+      shade.width = W; shade.height = H;
+      const sg = shade.getContext("2d");
+      const sil = new Path2D();
+      const rowsY = [];
+      for (let y = 0.415; y <= 1.08; y += 0.01) rowsY.push(y);
+      sil.moveTo(...scr(-torsoProfile(rowsY[0])[0], rowsY[0], 0));
+      for (const y of rowsY) sil.lineTo(...scr(-torsoProfile(y)[0], y, 0));
+      for (let i = rowsY.length - 1; i >= 0; i--) sil.lineTo(...scr(torsoProfile(rowsY[i])[0], rowsY[i], 0));
+      sil.closePath();
+      const armPath = (side) => {
+        const p = new Path2D();
+        const pts = [];
+        for (let t = -0.13; t <= 1.05; t += 0.02) {
+          const c = armCenter(side, t), r = armR(t);
+          pts.push([c[0] + side * an[0] * r, c[1] + an[1] * r]);
+        }
+        for (let t = 1.05; t >= -0.13; t -= 0.02) {
+          const c = armCenter(side, t), r = armR(t);
+          pts.push([c[0] - side * an[0] * r, c[1] - an[1] * r]);
+        }
+        p.moveTo(...scr(pts[0][0], pts[0][1], 0.05));
+        for (const q of pts) p.lineTo(...scr(q[0], q[1], 0.05));
+        p.closePath();
+        return p;
+      };
+      const shadeGrad = sg.createLinearGradient(0, 0.42 * s, 0, 1.0 * s);
+      shadeGrad.addColorStop(0, "rgba(4,10,34,0.82)");
+      shadeGrad.addColorStop(0.7, "rgba(3,8,28,0.7)");
+      shadeGrad.addColorStop(1, "rgba(3,8,28,0)");
+      sg.fillStyle = shadeGrad;
+      sg.fill(sil); sg.fill(armPath(-1)); sg.fill(armPath(1));
+      this.shade = shade;
+
+      // ---- light lines (body sprite) ----------------------------------------------------
       const body = document.createElement("canvas");
-      body.width = this.canvas.width;
-      body.height = this.canvas.height;
+      body.width = W; body.height = H;
       const g = body.getContext("2d");
       g.globalCompositeOperation = "lighter";
       g.lineCap = "round";
       g.lineJoin = "round";
-      const R = rng(42);
-      this.flows = [];
-
-      const glowStroke = (path, width, color, alpha, blur) => {
-        g.globalAlpha = alpha * 0.25;
-        g.strokeStyle = color;
-        g.lineWidth = width * 5;
-        g.stroke(path);
-        g.globalAlpha = alpha;
-        g.lineWidth = width;
-        if (blur && !this.lowPower) { g.shadowColor = color; g.shadowBlur = blur; }
-        g.strokeStyle = "rgba(235,245,255,1)";
-        g.stroke(path);
-        g.shadowBlur = 0;
-        g.globalAlpha = 1;
+      const B = 4, ALPHA = [0.07, 0.12, 0.2, 0.32];
+      const buckets = Array.from({ length: B }, () => new Path2D());
+      const add = (a, b, facing) => {
+        const k = Math.min(B - 1, Math.max(0, Math.floor((1 - facing) * B)));
+        buckets[k].moveTo(a[0], a[1]); buckets[k].lineTo(b[0], b[1]);
       };
-      const curve = (pts) => {
-        const p = new Path2D();
-        const [x0, y0] = this.P(...pts[0]);
-        p.moveTo(x0, y0);
-        for (let i = 1; i < pts.length; i += 3) {
-          const a = this.P(...pts[i]), b = this.P(...pts[i + 1]), c = this.P(...pts[i + 2]);
-          p.bezierCurveTo(a[0], a[1], b[0], b[1], c[0], c[1]);
+      const torsoFacing = (x, y) => {
+        const e = 0.003;
+        const dx = (torsoZ(x + e, y) - torsoZ(x - e, y)) / (2 * e), dy = (torsoZ(x, y + e) - torsoZ(x, y - e)) / (2 * e);
+        return 1 / Math.hypot(dx, dy, 1);
+      };
+      const T = (x, y) => scr(x, y, torsoZ(x, y));
+
+      // Torso rings (horizontal sections) and meridians.
+      const ringStep = lp ? 0.02 : 0.0115, cols = lp ? 26 : 44;
+      for (let y = 0.42; y <= 1.07; y += ringStep) {
+        const w = torsoProfile(y)[0];
+        let prev = null, prevVis = false;
+        for (let i = 0; i <= cols; i++) {
+          const x = -w + (2 * w * i) / cols;
+          const vis = !behindArm(x, y);
+          const p = T(x, y);
+          if (prev && vis && prevVis) add(prev, p, torsoFacing(x - w / cols, y));
+          prev = p; prevVis = vis;
         }
+      }
+      const merid = lp ? 12 : 22;
+      for (let i = 0; i <= merid; i++) {
+        const u = -1 + (2 * i) / merid;
+        let prev = null, prevVis = false;
+        for (let y = 0.42; y <= 1.07; y += 0.01) {
+          const x = u * torsoProfile(y)[0] * 0.995;
+          const vis = !behindArm(x, y);
+          const p = T(x, y);
+          if (prev && vis && prevVis) add(prev, p, torsoFacing(x, y));
+          prev = p; prevVis = vis;
+        }
+      }
+      // Arm rings and meridians (cylinders: front half visible).
+      for (const side of [-1, 1]) {
+        const armPoint = (t, th) => {
+          const c = armCenter(side, t), r = armR(t);
+          const x = c[0] + side * an[0] * r * Math.sin(th), y = c[1] + an[1] * r * Math.sin(th);
+          return [scr(x, y, r * Math.cos(th) + 0.05), Math.cos(th)];
+        };
+        const steps = lp ? 10 : 16;
+        for (let t = -0.12; t <= 1.05; t += lp ? 0.05 : 0.03) {
+          let prev = null;
+          for (let k = 0; k <= steps; k++) {
+            const [p, f] = armPoint(t, -Math.PI / 2 + (Math.PI * k) / steps);
+            if (prev) add(prev, p, f);
+            prev = p;
+          }
+        }
+        for (let k = 1; k < steps; k += 2) {
+          const th = -Math.PI / 2 + (Math.PI * k) / steps;
+          let prev = null;
+          for (let t = -0.12; t <= 1.05; t += 0.02) {
+            const [p, f] = armPoint(t, th);
+            if (prev) add(prev, p, f);
+            prev = p;
+          }
+        }
+      }
+      g.lineWidth = Math.max(0.6, 0.0011 * s);
+      g.strokeStyle = "rgba(110,165,255,1)";
+      for (let k = 0; k < B; k++) { g.globalAlpha = ALPHA[k]; g.stroke(buckets[k]); }
+
+      // Bright anatomical contours.
+      const glowLine = (path, width, alpha, flow) => {
+        g.globalAlpha = alpha * 0.22; g.strokeStyle = "rgba(80,140,255,1)"; g.lineWidth = width * 4.5; g.stroke(path);
+        if (!lp) { g.shadowColor = "rgba(90,150,255,1)"; g.shadowBlur = 0.01 * s; }
+        g.globalAlpha = alpha; g.strokeStyle = "rgba(230,242,255,1)"; g.lineWidth = width; g.stroke(path);
+        g.shadowBlur = 0;
+        if (flow) this.flows.push(path);
+      };
+      const surf = (pts) => {                     // smooth curve through points on the torso surface
+        const pr = pts.map(([x, y]) => T(x, y));
+        const p = new Path2D();
+        p.moveTo(pr[0][0], pr[0][1]);
+        for (let k = 1; k < pr.length - 1; k++) {
+          const last = k === pr.length - 2;
+          p.quadraticCurveTo(pr[k][0], pr[k][1], last ? pr[k + 1][0] : (pr[k][0] + pr[k + 1][0]) / 2,
+            last ? pr[k + 1][1] : (pr[k][1] + pr[k + 1][1]) / 2);
+        }
+        if (pr.length === 2) p.lineTo(pr[1][0], pr[1][1]);
         return p;
       };
-      const mirror = (pts) => pts.map(([x, y]) => [-x, y]);
+      const lw = Math.max(1.1, 0.0028 * s);
+      // Outline of the torso (trapezius, lats, waist) and of the arms.
+      for (const side of [-1, 1]) {
+        const edge = new Path2D();
+        let first = true;
+        for (let y = 0.416; y <= 1.07; y += 0.008) {
+          const x = side * torsoProfile(y)[0];
+          if (behindArm(x * 0.999, y)) { first = true; continue; }
+          const p = scr(x, y, 0);
+          if (first) { edge.moveTo(p[0], p[1]); first = false; } else edge.lineTo(p[0], p[1]);
+        }
+        glowLine(edge, lw * 1.1, 0.85, true);
+        for (const o of [1, -1]) {
+          const ap = new Path2D();
+          for (let t = -0.13, i = 0; t <= 1.05; t += 0.02, i++) {
+            const c = armCenter(side, t), r = armR(t);
+            const p = scr(c[0] + o * side * an[0] * r, c[1] + o * an[1] * r, 0.05);
+            if (i === 0) ap.moveTo(p[0], p[1]); else ap.lineTo(p[0], p[1]);
+          }
+          glowLine(ap, lw * (o > 0 ? 1.1 : 0.8), o > 0 ? 0.85 : 0.5, o > 0);
+        }
+        // Deltoid front border and biceps.
+        const arm = (t, f) => { const c = armCenter(side, t), r = armR(t); return [c[0] - side * an[0] * r * f, c[1] - an[1] * r * f]; };
+        const delt = new Path2D();
+        [[-0.1, 0.2], [0.05, 0.55], [0.18, 0.2], [0.27, -0.45]].forEach(([t, f], i) => {
+          const q = arm(t, f), p = scr(q[0], q[1], 0.11);
+          if (i === 0) delt.moveTo(p[0], p[1]); else delt.lineTo(p[0], p[1]);
+        });
+        glowLine(delt, lw * 0.85, 0.6, false);
+        const bic = new Path2D();
+        [[0.3, -0.25], [0.42, -0.05], [0.55, -0.2], [0.68, -0.35]].forEach(([t, f], i) => {
+          const q = arm(t, f), p = scr(q[0], q[1], 0.11);
+          if (i === 0) bic.moveTo(p[0], p[1]); else bic.lineTo(p[0], p[1]);
+        });
+        glowLine(bic, lw * 0.7, 0.4, false);
 
-      // Main contours (left side, mirrored).
-      const contours = [
-        // trapezius: neck base -> shoulder
-        [[-0.058, 0.43], [-0.10, 0.455], [-0.22, 0.47], [-0.33, 0.53]],
-        // shoulder -> arm
-        [[-0.33, 0.53], [-0.41, 0.56], [-0.445, 0.66], [-0.44, 0.80], [-0.435, 0.88], [-0.43, 0.95], [-0.425, 1.02]],
-        // collarbone
-        [[-0.035, 0.475], [-0.09, 0.455], [-0.17, 0.465], [-0.25, 0.50]],
-        // pectoral upper + lower
-        [[-0.012, 0.565], [-0.10, 0.535], [-0.22, 0.55], [-0.275, 0.64]],
-        [[-0.275, 0.64], [-0.25, 0.71], [-0.13, 0.73], [-0.02, 0.705]],
-        // armpit / lat
-        [[-0.30, 0.70], [-0.285, 0.80], [-0.27, 0.90], [-0.255, 1.02]],
-        // abs hints
-        [[-0.105, 0.80], [-0.07, 0.79], [-0.04, 0.79], [-0.015, 0.795]],
-        [[-0.10, 0.89], [-0.07, 0.88], [-0.04, 0.88], [-0.015, 0.885]],
-        // deltoid inner line
-        [[-0.33, 0.56], [-0.37, 0.62], [-0.38, 0.68], [-0.37, 0.74]],
-      ];
-      for (const c of contours) {
-        glowStroke(curve(c), Math.max(1.2, 0.0035 * s), "rgba(90,150,255,1)", 0.95, 0.012 * s);
-        glowStroke(curve(mirror(c)), Math.max(1.2, 0.0035 * s), "rgba(90,150,255,1)", 0.95, 0.012 * s);
+        // Collarbone (S-shaped), trapezius ridge.
+        glowLine(surf([[side * 0.03, 0.468], [side * 0.11, 0.459], [side * 0.19, 0.468], [side * 0.265, 0.488]]), lw, 0.8, true);
+        // Pectoral: lower border (the shelf) curving up into the armpit, faint upper fibres.
+        glowLine(surf([[side * 0.016, 0.648], [side * 0.08, 0.668], [side * 0.15, 0.665], [side * 0.22, 0.635], [side * 0.27, 0.585], [side * 0.29, 0.54]]), lw * 1.25, 0.95, true);
+        glowLine(surf([[side * 0.03, 0.5], [side * 0.12, 0.505], [side * 0.22, 0.525], [side * 0.285, 0.535]]), lw * 0.6, 0.28, false);
+        // Abs: outer edge, three tendinous lines, obliques and the V lines.
+        glowLine(surf([[side * 0.094, 0.7], [side * 0.1, 0.78], [side * 0.098, 0.87], [side * 0.088, 0.96], [side * 0.07, 1.04]]), lw * 0.9, 0.7, true);
+        for (const [y, curve] of [[0.772, 0.006], [0.852, 0.004], [0.935, 0.002]]) {
+          glowLine(surf([[side * 0.012, y], [side * 0.05, y + curve], [side * 0.092, y - 0.004]]), lw * 0.85, 0.6, false);
+        }
+        glowLine(surf([[side * 0.215, 0.8], [side * 0.19, 0.9], [side * 0.14, 0.98], [side * 0.085, 1.05]]), lw * 0.8, 0.5, false);
+        for (let k = 0; k < 3; k++) {  // serratus
+          glowLine(surf([[side * 0.245, 0.665 + k * 0.034], [side * 0.212, 0.685 + k * 0.034]]), lw * 0.6, 0.38, false);
+        }
       }
-      // Sternum.
-      glowStroke(curve([[0, 0.49], [0, 0.6], [0, 0.8], [0, 1.0]]), Math.max(1, 0.0025 * s), "rgba(110,140,255,1)", 0.7, 0.01 * s);
+      // Sternum / linea alba and navel.
+      glowLine(surf([[0, 0.475], [0, 0.58], [0, 0.68], [0, 0.8], [0, 0.9], [0, 0.965]]), lw * 0.8, 0.55, true);
+      const nav = T(0, 0.982);
+      g.globalAlpha = 0.5; g.strokeStyle = "rgba(220,235,255,1)"; g.lineWidth = lw * 0.7;
+      g.beginPath(); g.ellipse(nav[0], nav[1], 0.006 * s, 0.009 * s, 0, 0, TAU); g.stroke();
 
-      // Energy filaments flowing over the shoulders and chest.
+      // Energy filaments sweeping out from the shoulders (the "energy cape").
+      const R = rng(42);
       const colors = ["rgba(120,170,255,1)", "rgba(150,120,255,1)", "rgba(90,200,255,1)"];
-      const count = this.lowPower ? 70 : 160;
-      for (let i = 0; i < count; i++) {
-        const side = R() < 0.5 ? -1 : 1;
-        // Start along the neck base / trapezius, flow outward and down.
-        const u = R();
-        const x0 = side * (0.05 + u * 0.28), y0 = 0.43 + u * 0.1 + (R() - 0.5) * 0.02;
-        const len = 0.12 + R() * 0.38;
-        const bend = (R() - 0.3) * 0.25;
-        const x3 = x0 + side * (0.05 + R() * 0.18), y3 = Math.min(1.05, y0 + len);
-        const pts = [[x0, y0], [x0 + side * bend * 0.4, y0 + len * 0.3], [x3 - side * bend * 0.3, y3 - len * 0.35], [x3, y3]];
-        const path = curve(pts);
-        const alpha = 0.06 + R() * 0.22;
-        g.globalAlpha = alpha;
-        g.strokeStyle = colors[i % 3];
-        g.lineWidth = Math.max(0.6, (0.4 + R() * 0.9) * 0.0018 * s);
-        g.stroke(path);
-        if (i % 9 === 0) this.flows.push(path);
-      }
-      // Long filaments sweeping out from the shoulders (the "energy cape").
-      const capes = this.lowPower ? 14 : 34;
+      const capes = lp ? 10 : 26;
       for (let i = 0; i < capes; i++) {
         const side = i % 2 ? 1 : -1;
-        const y0 = 0.5 + R() * 0.12;
-        const pts = [[side * (0.25 + R() * 0.08), y0], [side * (0.42 + R() * 0.1), y0 - 0.06 + R() * 0.1],
-          [side * (0.52 + R() * 0.08), y0 + 0.05 + R() * 0.25], [side * (0.6 + R() * 0.12), y0 + 0.2 + R() * 0.35]];
-        const path = curve(pts);
-        g.globalAlpha = 0.05 + R() * 0.16;
-        g.strokeStyle = colors[(i + 1) % 3];
+        const y0 = 0.5 + R() * 0.1;
+        const pts = [[side * (0.36 + R() * 0.05), y0], [side * (0.48 + R() * 0.08), y0 - 0.05 + R() * 0.08],
+          [side * (0.54 + R() * 0.06), y0 + 0.08 + R() * 0.22], [side * (0.6 + R() * 0.1), y0 + 0.25 + R() * 0.3]];
+        const path = new Path2D();
+        path.moveTo(...this.P(...pts[0]));
+        path.bezierCurveTo(...this.P(...pts[1]), ...this.P(...pts[2]), ...this.P(...pts[3]));
+        g.globalAlpha = 0.05 + R() * 0.14;
+        g.strokeStyle = colors[i % 3];
         g.lineWidth = Math.max(0.6, 0.0016 * s);
         g.stroke(path);
-        if (i % 5 === 0) this.flows.push(path);
+        if (i % 6 === 0) this.flows.push(path);
       }
-      // Sparkle dust over the body.
-      for (let i = 0; i < (this.lowPower ? 120 : 320); i++) {
-        const x = (R() - 0.5) * 0.8, y = 0.42 + R() * 0.6;
-        if (Math.abs(x) > 0.44 - (y < 0.53 ? (0.53 - y) * 3 : 0)) continue;
-        const [px, py] = this.P(x, y);
-        g.globalAlpha = 0.15 + R() * 0.6;
-        g.fillStyle = R() < 0.7 ? "#dbe9ff" : "#9f8bff";
+      // Sparkle dust on the body.
+      for (let i = 0; i < (lp ? 90 : 220); i++) {
+        const y = 0.45 + R() * 0.58, x = (R() * 2 - 1) * torsoProfile(y)[0];
+        const [px, py] = T(x, y);
+        g.globalAlpha = 0.12 + R() * 0.45;
+        g.fillStyle = R() < 0.75 ? "#dbe9ff" : "#9f8bff";
         g.fillRect(px, py, R() < 0.9 ? 1 : 2, R() < 0.9 ? 1 : 2);
       }
       // Fade the bottom of the bust into the background.
       g.globalAlpha = 1;
       g.globalCompositeOperation = "destination-out";
-      const fade = g.createLinearGradient(0, 0.78 * s, 0, s);
+      const fade = g.createLinearGradient(0, 0.8 * s, 0, s);
       fade.addColorStop(0, "rgba(0,0,0,0)");
       fade.addColorStop(1, "rgba(0,0,0,1)");
       g.fillStyle = fade;
-      g.fillRect(0, 0.78 * s, body.width, 0.22 * s);
+      g.fillRect(0, 0.8 * s, W, 0.2 * s);
       this.body = body;
-
     }
 
     buildSprites() {
@@ -329,8 +530,17 @@
       const { g, s, cx } = this;
       const voice = this.state === "speaking" ? level : this.state === "listening" ? level * 0.5 : 0;
       g.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      g.globalCompositeOperation = "lighter";
       const breathe = Math.sin(t * 0.9);
+      // Solid dark silhouette (hides the light waves behind the body), then light on top.
+      g.save();
+      g.translate(cx, 0.6 * s);
+      g.scale(1 + 0.004 * breathe, 1 + 0.004 * breathe);
+      g.translate(-cx, -0.6 * s + 0.002 * s * breathe);
+      g.globalCompositeOperation = "source-over";
+      g.globalAlpha = 1;
+      g.drawImage(this.shade, 0, 0);
+      g.restore();
+      g.globalCompositeOperation = "lighter";
 
       // Soft halo behind the figure.
       g.globalAlpha = 0.55 * this.glow;
@@ -358,9 +568,9 @@
 
       // Chest core (pulses with the voice).
       const core = this.coreSprite;
-      const coreScale = 0.55 + 0.1 * breathe * 0.5 + voice * 0.9 + (this.state === "thinking" ? 0.15 * Math.sin(t * 8) : 0);
+      const coreScale = 0.38 + 0.05 * breathe + voice * 0.7 + (this.state === "thinking" ? 0.15 * Math.sin(t * 8) : 0);
       g.globalAlpha = Math.min(1, 0.55 + voice * 0.8) * this.glow;
-      g.drawImage(core, cx - core.width * coreScale / 2, 0.61 * s - core.height * coreScale / 2, core.width * coreScale, core.height * coreScale);
+      g.drawImage(core, cx - core.width * coreScale / 2, 0.585 * s - core.height * coreScale / 2, core.width * coreScale, core.height * coreScale);
 
       // Sparkles drifting upward.
       if (!this.lowPower) {
@@ -429,12 +639,13 @@
       const glow = this.glow;
       const ay = this.yaw * 0.62, ap = this.pitch * 0.38;
       const cY = Math.cos(ay), sY = Math.sin(ay), cP = Math.cos(ap), sP = Math.sin(ap);
-      const hx = this.yaw * 0.012, hy = 0.19 + this.pitch * 0.008;
+      const HS = 1.12;                                  // head scale (proportion to the shoulders)
+      const hx = this.yaw * 0.012, hy = 0.2 + this.pitch * 0.008;
       const proj = (x, y, z) => {
         const x1 = x * cY + z * sY, z1 = -x * sY + z * cY;
         const y2 = y * cP + z1 * sP, z2 = -y * sP + z1 * cP;
         const f = 1 / (1 - z2 * 0.8);
-        return [cx + (hx + x1 * f) * s, (hy + y2 * f) * s, z2];
+        return [cx + (hx + x1 * f * HS) * s, (hy + y2 * f * HS) * s, z2];
       };
       const facing = (nx, ny, nz) => -ny * sP + (-nx * sY + nz * cY) * cP;
       const face = (x, y, lift = 0.0015) => {   // point on the face surface -> [X, Y, depth, facing]
@@ -453,13 +664,32 @@
         const x1 = x * cY + z * sY, z1 = -x * sY + z * cY;
         const y2 = y * cP + z1 * sP, z2 = -y * sP + z1 * cP;
         const f = 1 / (1 - z2 * 0.8);
-        X[v] = cx + (hx + x1 * f) * s; Y[v] = (hy + y2 * f) * s;
+        X[v] = cx + (hx + x1 * f * HS) * s; Y[v] = (hy + y2 * f * HS) * s;
         F[v] = facing(N[k], N[k + 1], N[k + 2]);
       }
 
-      // Neck (behind the head).
-      g.globalCompositeOperation = "lighter";
+      // Neck (behind the head): dark fill, side contours, sternocleidomastoid "V".
       const rimW = Math.max(1.4, 0.0042 * s);
+      const nl = proj(-0.066, 0.08, -0.045), nr = proj(0.066, 0.08, -0.045);
+      const neck = new Path2D();
+      neck.moveTo(nl[0], nl[1]);
+      neck.bezierCurveTo(nl[0], nl[1] + 0.09 * s, cx - 0.06 * s, 0.37 * s, cx - 0.07 * s, 0.435 * s);
+      neck.lineTo(cx + 0.07 * s, 0.435 * s);
+      neck.bezierCurveTo(cx + 0.06 * s, 0.37 * s, nr[0], nr[1] + 0.09 * s, nr[0], nr[1]);
+      neck.closePath();
+      g.globalCompositeOperation = "source-over";
+      g.globalAlpha = 0.85;
+      g.fillStyle = "rgba(4,10,34,1)";
+      g.fill(neck);
+      g.globalCompositeOperation = "lighter";
+      for (const side of [-1, 1]) {
+        const e = proj(side * 0.084, 0.055, -0.04);
+        const scm = new Path2D();
+        scm.moveTo(e[0], e[1]);
+        scm.bezierCurveTo(e[0] - side * 0.004 * s, e[1] + 0.07 * s, cx + side * 0.03 * s, 0.43 * s, cx + side * 0.016 * s, 0.474 * s);
+        g.globalAlpha = 0.18 * glow; g.lineWidth = rimW * 2.5; g.strokeStyle = "rgba(80,140,255,1)"; g.stroke(scm);
+        g.globalAlpha = 0.55 * glow; g.lineWidth = rimW * 0.5; g.strokeStyle = "rgba(220,238,255,1)"; g.stroke(scm);
+      }
       for (const side of [-1, 1]) {
         const a = proj(side * 0.066, 0.08, -0.045);
         const p = new Path2D();
@@ -533,7 +763,7 @@
       const thinking = this.state === "thinking";
       const phase = (t * (thinking ? 0.9 : 0.16)) % 1;
       if (thinking || phase < 0.35) {
-        const yy = (hy - 0.16 + (thinking ? phase : phase / 0.35) * 0.33) * s;
+        const yy = (hy + (-0.16 + (thinking ? phase : phase / 0.35) * 0.33) * HS) * s;
         g.save();
         g.clip(sil);
         const band = g.createLinearGradient(0, yy - 0.02 * s, 0, yy + 0.004 * s);
@@ -584,16 +814,17 @@
         const upper = (u) => -0.0105 - 0.0088 * Math.pow(Math.sin(Math.PI * u), 0.85) - 0.0012 * u;
         const ex = (u) => side * (0.021 + 0.035 * u);
         stroke(curve((u) => [ex(u), upper(u) * (1 - b) + (lower(u) - 0.0008) * b]), 1, fw * 1.15, eyeHalo, eyeCore);
-        stroke(curve((u) => [ex(u), lower(u)]), 0.5, fw * 0.8, eyeHalo, eyeCore);
+        stroke(curve((u) => [ex(u), lower(u)]), 0.45, fw * 0.8, eyeHalo, eyeCore);
+        stroke(curve((u) => [ex(0.1 + u * 0.8), upper(0.1 + u * 0.8) - 0.0055 - 0.0012 * Math.sin(Math.PI * u)], 6), 0.22, fw * 0.7); // eyelid crease
         // Iris and pupil: they follow the gaze.
         if (b < 0.6) {
           const c = face(side * 0.0385 + this.gazeX * 0.0065, -0.0122 + this.gazeY * 0.0035, 0.002);
           const vis = Math.min(1, Math.max(0, c[3] * 2)) * (1 - b / 0.6);
           if (vis > 0.02) {
-            const r = 0.006 * s / (1 - c[2] * 0.8);
+            const r = 0.0052 * HS * s / (1 - c[2] * 0.8);
             const bright = Math.min(1, 0.55 + listen * 0.3 + voice * 0.5);
-            const es = this.eyeSprite, w = 0.04 * s, h = 0.026 * s;
-            g.globalAlpha = vis * bright * glow * 0.9;
+            const es = this.eyeSprite, w = 0.03 * s, h = 0.018 * s;
+            g.globalAlpha = vis * bright * glow * 0.65;
             g.drawImage(es, c[0] - w / 2, c[1] - h / 2, w, h);
             g.globalAlpha = vis * bright * glow;
             g.strokeStyle = eyeCore;
@@ -611,7 +842,7 @@
         stroke([[side * 0.009, -0.024], [side * 0.011, 0.0], [side * 0.014, 0.026], [side * 0.019, 0.041]], 0.3, fw * 0.8);
         stroke([[side * 0.045, 0.011], [side * 0.068, 0.004], [side * 0.088, -0.006]], 0.28, fw * 0.8);
         stroke([[side * 0.022, 0.05], [side * 0.03, 0.066], [side * 0.034, 0.086]], 0.24, fw * 0.75);
-        stroke([[side * 0.093, 0.03], [side * 0.089, 0.072], [side * 0.078, 0.104], [side * 0.056, 0.134], [side * 0.028, 0.151], [0, 0.156]], 0.4, fw * 0.9);
+        stroke([[side * 0.093, 0.03], [side * 0.093, 0.072], [side * 0.085, 0.104], [side * 0.064, 0.134], [side * 0.034, 0.151], [0, 0.157]], 0.42, fw * 0.9);
         // Temple circuit with a pulsing node.
         stroke([[side * 0.07, -0.07], [side * 0.08, -0.06], [side * 0.086, -0.052], [side * 0.09, -0.035]], 0.55, fw * 0.7, "rgba(120,120,255,1)");
         const node = face(side * 0.086, -0.052);

@@ -18,7 +18,7 @@ DEFAULTS: dict[str, Any] = {
         "max_tokens": 2048,
         "timeout_seconds": 10,
         "max_retries": 1,
-        "history_turns": 6,
+        "history_turns": 10,
         "use_tools": True,
         "system_prompt": (
             "Tu es Jarvis, un assistant vocal calme, précis et efficace. "
@@ -27,7 +27,8 @@ DEFAULTS: dict[str, Any] = {
             "Ne donne plus de détails que si l'utilisateur le demande."
         ),
         "claude": {"model": "claude-opus-5-5", "effort": "low", "refusal_fallback": True},
-        "groq": {"model": "openai/gpt-oss-120b", "base_url": "https://api.groq.com/openai/v1"},
+        "groq": {"model": "openai/gpt-oss-120b", "base_url": "https://api.groq.com/openai/v1",
+                 "reasoning_effort": "low", "fallback_model": "openai/gpt-oss-20b"},
         "gemini": {"model": "gemini-2.5-flash", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
         "openai": {"model": "gpt-4.1-mini", "base_url": "https://api.openai.com/v1"},
     },
@@ -55,7 +56,7 @@ DEFAULTS: dict[str, Any] = {
         "barge_in": True,
         "wake_nbest": 10,
         "wake_grammar": True,
-        "cloud_model": "whisper-large-v3-turbo",
+        "cloud_model": "whisper-large-v3",
     },
     "hud": {
         "enabled": True,

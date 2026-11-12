@@ -7,7 +7,7 @@
     "max_tokens": 2048,
     "timeout_seconds": 10,
     "max_retries": 1,
-    "history_turns": 6,
+    "history_turns": 10,
     "use_tools": true,
     "system_prompt": "Tu es Jarvis, l'assistant vocal de l'utilisateur : détendu, sûr de toi, cool et un brin d'humour, comme un pote brillant. Tu tutoies l'utilisateur et tu parles comme à l'oral, naturellement, avec des phrases courtes. Réponds en une à trois phrases, sans listes ni Markdown ni emojis, car tout est lu à voix haute. Si une demande n'est pas claire, pose une petite question au lieu de deviner. Donne plus de détails seulement si on te le demande.",
     "claude": {
@@ -17,7 +17,9 @@
     },
     "groq": {
       "model": "openai/gpt-oss-120b",
-      "base_url": "https://api.groq.com/openai/v1"
+      "base_url": "https://api.groq.com/openai/v1",
+      "reasoning_effort": "low",
+      "fallback_model": "openai/gpt-oss-20b"
     },
     "gemini": {
       "model": "gemini-2.5-flash",
@@ -48,7 +50,7 @@
     "follow_up_seconds": 12,
     "wake_sound": true,
     "cloud_transcription": "groq",
-    "cloud_model": "whisper-large-v3-turbo",
+    "cloud_model": "whisper-large-v3",
     "barge_in": true
   },
   "hud": {

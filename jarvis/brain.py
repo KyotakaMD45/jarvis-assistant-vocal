@@ -21,11 +21,26 @@ log = get_logger(__name__)
 __all__ = ["Brain", "BrainError", "ToolCall"]
 
 SPEECH_PROMPT = (
-    "\n\nLes messages de l'utilisateur viennent d'une reconnaissance vocale qui peut se tromper "
-    "(mots mal entendus, noms déformés comme « Chad JPT » pour ChatGPT). Comprends l'intention la plus "
-    "probable. Si une « autre transcription » est fournie, choisis la version la plus plausible. "
-    "Si la demande reste vraiment ambiguë, pose une seule question courte au lieu de deviner."
+    "\n\nLes messages de l'utilisateur viennent d'une reconnaissance vocale qui peut se tromper : homophones "
+    "(« mais » pour « mets », « sa » pour « ça », « l'anglais » pour « l'onglet »), mots coupés, noms déformés "
+    "(« Chad JPT » pour ChatGPT, « viscose » pour VS Code), ponctuation absente. Comprends l'intention la plus "
+    "probable en t'aidant de la conversation précédente et de la fenêtre active. Si une « autre transcription » "
+    "est fournie, choisis la version la plus plausible. Si l'utilisateur se corrige (« non, je voulais dire… », "
+    "« pas ça »), applique la correction à sa demande précédente. Une phrase courte qui suit ta réponse est souvent "
+    "la suite de la même conversation. Si la demande reste vraiment ambiguë, pose une seule question courte "
+    "au lieu de deviner. Ne parle jamais de reconnaissance vocale ni d'erreurs de transcription."
 )
+
+
+def _active_window_title() -> str:
+    """Title of the window the user works in (helps with "écris ici", "ferme ça"); "" if unknown."""
+    try:
+        from jarvis import pcctl
+
+        hwnd = pcctl.target_window()
+        return pcctl.window_info(hwnd)[1][:90] if hwnd else ""
+    except Exception:  # noqa: BLE001 - context only, never fail a request for it
+        return ""
 
 TOOLS_PROMPT = (
     "\n\nTu contrôles l'ordinateur Windows de l'utilisateur grâce aux outils fournis. "
@@ -126,6 +141,9 @@ class Brain:
     def _system_prompt(self, with_tools: bool) -> str:
         now = datetime.now()
         prompt = self.ai["system_prompt"] + SPEECH_PROMPT + f"\n\nDate et heure locales : {now:%A %d %B %Y, %H:%M}."
+        window = _active_window_title()
+        if window:
+            prompt += f"\nFenêtre active de l'utilisateur : « {window} »."
         return prompt + (TOOLS_PROMPT if with_tools else "")
 
     def ask(self, user_text: str, tools: list[dict] | None = None) -> Iterator[str]:
@@ -161,6 +179,8 @@ class Brain:
 
         # Plain-text history only (works with every provider), kept short to stay fast and cheap.
         summary = answer or "; ".join(f"[action {c.name} {c.args}]" for c in self.last_tool_calls)
+        if len(summary) > 500:
+            summary = summary[:500] + "…"
         self.history = messages + [{"role": "assistant", "content": summary}]
         max_messages = int(self.ai["history_turns"]) * 2
         self.history = self.history[-max_messages:] if max_messages else []

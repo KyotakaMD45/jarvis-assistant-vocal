@@ -49,8 +49,7 @@ _WIN = r"(?:la fenetre|cette fenetre|la fenetre active|l'application|cette appli
 COMMANDS = [
     Command(
         name="window_control",
-        description="Manage the window the user is working in: minimize, maximize, restore, close, switch (to the "
-                    "next window), show_desktop, snap_left, snap_right (half screen), task_view.",
+        description="Manage the window the user is working in (switch = next window, snap = half screen).",
         run=window,
         patterns=[
             (r"^(?:reduis|reduit|reduire|minimise|minimiser|cache) " + _WIN + r"$", {"action": "minimize"}),
@@ -59,8 +58,8 @@ COMMANDS = [
             (r"^(?:ferme|fermer|fermez|quitte) " + _WIN + r"$", {"action": "close"}),
             (r"^(?:change|changer|passe a la|bascule|basculer) (?:de |sur la |vers la )?fenetre(?: suivante)?$|^fenetre suivante$", {"action": "switch"}),
             (r"^(?:affiche|montre|montre-moi|va sur|retourne sur|reviens sur) (?:le|mon) bureau$|^(?:le )?bureau$", {"action": "show_desktop"}),
-            (r"^(?:mets|met|place|deplace|colle) " + _WIN + r" (?:a|sur la|sur le cote) gauche$", {"action": "snap_left"}),
-            (r"^(?:mets|met|place|deplace|colle) " + _WIN + r" (?:a|sur la|sur le cote) droite$", {"action": "snap_right"}),
+            (r"^(?:mets|met|mais|place|deplace|colle) " + _WIN + r" (?:a|sur la|sur le cote) gauche$", {"action": "snap_left"}),
+            (r"^(?:mets|met|mais|place|deplace|colle) " + _WIN + r" (?:a|sur la|sur le cote) droite$", {"action": "snap_right"}),
             (r"^(?:montre|affiche) (?:toutes )?(?:les|mes) fenetres$|^vue des taches$", {"action": "task_view"}),
         ],
         parameters={"action": {"type": "string", "enum": ACTIONS}},

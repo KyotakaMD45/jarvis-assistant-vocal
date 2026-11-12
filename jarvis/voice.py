@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import itertools
 import queue
+import re
 import socket
 import sys
 import threading
@@ -281,7 +282,73 @@ class VoiceAssistant:
     # background program take the foreground) leaves the new window hidden behind it.
     OPENS_WINDOW = {"open_app", "open_website", "web_search", "play_music", "windows_settings", "search_files"}
 
-    def _run_command(self, command: commands.Command, args: dict, from_ai: bool = False) -> None:
+    # A request with several steps ("ouvre VS Code ET écris..."): after the first actions, the AI
+    # is asked for the next step (at most MAX_STEPS rounds).
+    MULTI_STEP = re.compile(r"\b(?:et|puis|ensuite|apres|après|avant de|et puis)\b", re.IGNORECASE)
+    MAX_STEPS = 3
+    # Words that suggest an action on the PC. Without any of them (a plain question, a chat), the AI
+    # is called without the tool list: ~300 tokens instead of ~2300, faster and lighter on the quota.
+    ACTION_HINTS = re.compile(
+        r"\b(?:ouvr|ferm|lanc|demarr|quitt|met|mets|mais|ecri|tap|dict|copi|coll|coup|sauvegard|enregistr|cherch|"
+        r"trouv|recherch|jou|lis|lit|lire|ecout|pause|suivant|precedent|reprend|arret|stop|monte|baiss|augment|diminu|"
+        r"regl|activ|desactiv|etein|allum|redemarr|verrouill|veille|fenetre|onglet|volume|son|luminosit|ecran|"
+        r"parametre|reglage|wifi|wi-fi|bluetooth|fichier|dossier|document|corbeille|rappel|minuteur|alarme|timer|"
+        r"regard|tourn|captur|batteri|ram|memoire|processeur|cpu|disque|ip|bureau|passe|change|bascul|affich|montr|"
+        r"supprim|vid|musique|chanson|youtube|spotify|code|programme|script|site|page|google|navigat|groq|claude|"
+        r"gemini|openai|gpt|mode sombre|mode clair|zoom|defil|descend|remont|selection|actualis|rafraich|appli|"
+        r"ordi|pc|windows|clavier|souris|mail|message|whatsapp|discord|chrome|edge|word|excel|vs|notepad|bloc)",
+        re.IGNORECASE)
+
+    def _needs_tools(self, text: str) -> bool:
+        return bool(self.ACTION_HINTS.search(simple(text)))
+
+    def _run_tool_calls(self, calls) -> list[tuple[str, dict, str | None]]:
+        done = []
+        for call in calls:
+            command = commands.get(call.name)
+            if command is None or not command.ai_tool:
+                log.error("AI asked for unknown tool %r", call.name)
+                self.say(SPOKEN["unknown_tool"])
+                continue
+            try:
+                args = commands.validate_args(command, call.args)
+            except ValueError as exc:
+                log.error("Invalid tool arguments for %s: %s (%r)", call.name, exc, call.args)
+                self.say(SPOKEN["bad_tool"])
+                continue
+            self.ui.log("system", f"Action: {command.name} {args}")
+            done.append((command.name, args, self._run_command(command, args, from_ai=True)))
+        return done
+
+    def _continue_steps(self, text: str, done: list) -> None:
+        if not done or not self.MULTI_STEP.search(text):
+            return
+        history = list(self.brain.history)
+        seen = {(n, repr(a)) for n, a, _ in done}
+        try:
+            for _ in range(self.MAX_STEPS - 1):
+                summary = "; ".join(f"{n} {a} -> {r or 'fait'}" for n, a, r in done)
+                prompt = (f"(Suite automatique, l'utilisateur n'a rien dit de plus.) Sa demande : « {text} ». "
+                          f"Actions déjà faites : {summary}. S'il reste une étape à faire pour cette demande, appelle "
+                          "l'outil suivant sans écrire de texte (ne refais jamais une action déjà faite). "
+                          "Si tout est fait, réponds uniquement : OK")
+                answer = "".join(self.brain.ask(prompt, tools=commands.tool_specs())).strip()
+                typed = any(n == "type_text" for n, _a, _r in done)
+                calls = [c for c in self.brain.last_tool_calls if (c.name, repr(c.args)) not in seen
+                         and not (typed and c.name == "keyboard_shortcut" and c.args.get("action") == "new")]
+                if not calls:
+                    if answer and not simple(answer).startswith("ok") and len(answer) > 3:
+                        self.say(answer)
+                    return
+                log.info("Next step of %r: %s", text, [c.name for c in calls])
+                seen.update((c.name, repr(c.args)) for c in calls)
+                done = done + self._run_tool_calls(calls)
+        except BrainError as err:
+            log.warning("Multi-step continuation stopped: %s", err.message)
+        finally:
+            self.brain.history = history  # the synthetic prompts stay out of the conversation
+
+    def _run_command(self, command: commands.Command, args: dict, from_ai: bool = False) -> str | None:
         if command.name in self.OPENS_WINDOW:
             from jarvis import pcctl
 
@@ -294,6 +361,7 @@ class VoiceAssistant:
             self.say(result)
         if command.name == "switch_ai":
             self.ui.status(model=self._ai_status())
+        return result
 
     def ask_ai(self, text: str, alternative: str | None = None) -> bool:
         """Stream the AI's answer to the speaker and the HUD; run the commands it asks for."""
@@ -301,7 +369,7 @@ class VoiceAssistant:
         print(f"{self.cfg['assistant_name']} > ", end="", flush=True)
         started = time.perf_counter()
         first = True
-        tools = commands.tool_specs() if self.use_tools else None
+        tools = commands.tool_specs() if self.use_tools and self._needs_tools(text) else None
         spoken: list[str] = []
         spoken_words: set[str] = set()
 
@@ -365,20 +433,8 @@ class VoiceAssistant:
             delay = self.speaker.first_audio_delay
             if delay:
                 log.info("Voice answer: first audio %.2fs after the command was recognized", delay)
-            for call in self.brain.last_tool_calls:
-                command = commands.get(call.name)
-                if command is None or not command.ai_tool:
-                    log.error("AI asked for unknown tool %r", call.name)
-                    self.say(SPOKEN["unknown_tool"])
-                    continue
-                try:
-                    args = commands.validate_args(command, call.args)
-                except ValueError as exc:
-                    log.error("Invalid tool arguments for %s: %s (%r)", call.name, exc, call.args)
-                    self.say(SPOKEN["bad_tool"])
-                    continue
-                self.ui.log("system", f"Action: {command.name} {args}")
-                self._run_command(command, args, from_ai=True)
+            done = self._run_tool_calls(self.brain.last_tool_calls)
+            self._continue_steps(text, done)
             self.ui.status(network="ONLINE", voice=self._voice_status())
             return True
         except BrainError as err:

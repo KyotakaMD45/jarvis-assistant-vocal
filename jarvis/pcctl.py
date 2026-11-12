@@ -235,6 +235,7 @@ def close(hwnd) -> None:
 
 # An app opened in the same voice turn takes a moment to appear: typing must wait for it.
 _opened = {"at": 0.0, "fg": None, "before": set()}
+last_target_fresh = False  # the last wait_for_target() waited for an app opened just before
 
 
 def mark_app_opened() -> None:
@@ -250,8 +251,10 @@ def mark_app_opened() -> None:
 
 def wait_for_target(max_wait: float = 6.0):
     """Return the window to type into (after a just-opened app has appeared), or None."""
+    global last_target_fresh
     started = time.monotonic()
-    if started - _opened["at"] < 10.0:
+    last_target_fresh = started - _opened["at"] < 10.0
+    if last_target_fresh:
         while time.monotonic() - started < max_wait:
             fg = foreground()
             if fg and not is_hud(fg):

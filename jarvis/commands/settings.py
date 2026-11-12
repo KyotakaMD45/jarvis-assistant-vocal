@@ -59,9 +59,7 @@ _OPEN = r"(?:ouvre|ouvrez|affiche|montre|va dans|va sur)"
 COMMANDS = [
     Command(
         name="windows_settings",
-        description="Open a Windows settings page (wifi, bluetooth, network, display, sound, battery, power, update, "
-                    "apps, notifications, background, personalization, storage, mouse, keyboard, date, language, privacy, "
-                    "accounts, home) or switch Windows to dark_mode / light_mode.",
+        description="Open a Windows settings page, or switch Windows to dark_mode / light_mode.",
         run=settings,
         patterns=[
             *[(r"^" + _OPEN + r" (?:les )?(?:parametres|reglages) (?:" + rx + r")$", {"page": key}) for key, rx in _W.items()],

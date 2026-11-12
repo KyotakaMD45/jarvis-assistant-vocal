@@ -51,8 +51,7 @@ def info(ctx: CommandContext, args: dict) -> str:
 COMMANDS = [
     Command(
         name="system_info",
-        description="Tell computer information: cpu usage, ram (memory) usage, disk free space, local ip address, "
-                    "uptime, or all.",
+        description="Tell computer information (cpu, ram, disk space, local ip, uptime, all).",
         run=info,
         patterns=[
             (r"(?:utilisation|charge|etat) (?:du )?(?:processeur|cpu)|combien (?:utilise|consomme) le processeur", {"what": "cpu"}),
