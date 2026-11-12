@@ -49,6 +49,9 @@ TOOLS_PROMPT = (
     "Tu peux appeler plusieurs outils à la suite : par exemple, pour écrire du code dans VS Code, appelle "
     "open_app (VS Code), puis keyboard_shortcut (new), puis type_text avec le code complet. Pour écrire un "
     "texte, un mail ou du code demandé par l'utilisateur, rédige-le toi-même et passe-le à type_text. "
+    "Pour « ce texte », « ça », « la sélection » (résumer, traduire, corriger, reformuler, expliquer), utilise "
+    "selected_text. Pour envoyer un message (WhatsApp ou mail), utilise send_message : l'utilisateur confirmera. "
+    "Pour « demande à Claude / ChatGPT / Perplexity », utilise ask_web_ai. "
     "Sinon, réponds normalement."
 )
 
@@ -131,6 +134,37 @@ class Brain:
         threading.Thread(target=self.warm_up, daemon=True).start()
         return f"C'est fait, j'utilise maintenant {info.label}."
 
+    def complete(self, system: str, text: str) -> str:
+        """One-shot answer (no tools, no conversation history): summaries, rewrites, translations."""
+        try:
+            provider = self._provider()
+            return "".join(provider.stream(system, [{"role": "user", "content": text}], None)).strip()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Completion failed: %r", exc)
+            return ""
+
+    def translate(self, text: str, lang: str = "en") -> str:
+        """Short spoken translation (used to say French action confirmations in English)."""
+        cache = self.__dict__.setdefault("_translations", {})
+        key = (lang, text)
+        if key in cache:
+            return cache[key]
+        target = {"en": "English", "fr": "French"}.get(lang, lang)
+        try:
+            provider = self._provider()
+            out = "".join(provider.stream(
+                f"Translate the user's text into short, natural spoken {target}. Keep names, numbers and "
+                "quoted text as they are. Reply with the translation only.",
+                [{"role": "user", "content": text}], None)).strip()
+        except Exception as exc:  # noqa: BLE001 - never block an action for a translation
+            log.warning("Translation failed: %r", exc)
+            return text
+        if out:
+            if len(cache) > 300:
+                cache.clear()
+            cache[key] = out
+        return out or text
+
     def describe(self) -> str:
         return f"J'utilise {self.label}, avec le modèle {self.model}."
 
@@ -178,7 +212,7 @@ class Brain:
             raise BrainError("empty_answer", f"{self.label} returned an empty answer. Try rephrasing.")
 
         # Plain-text history only (works with every provider), kept short to stay fast and cheap.
-        summary = answer or "; ".join(f"[action {c.name} {c.args}]" for c in self.last_tool_calls)
+        summary = answer or "C'est fait."
         if len(summary) > 500:
             summary = summary[:500] + "…"
         self.history = messages + [{"role": "assistant", "content": summary}]

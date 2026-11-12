@@ -10,7 +10,7 @@ from jarvis.paths import CONFIG_PATH
 
 
 DEFAULTS: dict[str, Any] = {
-    "assistant_name": "Jarvis",
+    "assistant_name": "Apex",
     "language": "fr-FR",
     "log_level": "INFO",
     "ai": {
@@ -21,7 +21,7 @@ DEFAULTS: dict[str, Any] = {
         "history_turns": 10,
         "use_tools": True,
         "system_prompt": (
-            "Tu es Jarvis, un assistant vocal calme, précis et efficace. "
+            "Tu es Apex, un assistant vocal calme, précis et efficace. "
             "Réponds toujours en français, en une à trois phrases courtes, "
             "sans listes ni mise en forme Markdown, car ta réponse sera lue à voix haute. "
             "Ne donne plus de détails que si l'utilisateur le demande."
@@ -36,21 +36,22 @@ DEFAULTS: dict[str, Any] = {
         "music_folder": "",
     },
     "voice": {
-        "voice": "fr-FR-HenriNeural",
-        "pitch": "-25Hz",
-        "rate": "-5%",
+        "voice": "fr-FR-RemyMultilingualNeural",
+        "pitch": "-30Hz",
+        "rate": "-8%",
         "volume": "+0%",
         "offline_rate": 165,
         "offline_language": "fr",
         "test_sentence": "Bonjour monsieur. Tous les systèmes sont opérationnels. Je suis prêt.",
     },
     "listening": {
-        "wake_words": ["jarvis"],
+        "wake_words": ["apex", "jarvis"],
         "wake_alternatives": [],
         "model_path": "models/vosk-model-small-fr-0.22",
         "input_device": None,
         "command_timeout_seconds": 7,
         "follow_up_seconds": 12,
+        "languages": ["fr", "en"],
         "wake_sound": True,
         "cloud_transcription": "groq",
         "barge_in": True,

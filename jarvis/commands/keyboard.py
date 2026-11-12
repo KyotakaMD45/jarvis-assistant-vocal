@@ -19,6 +19,7 @@ SHORTCUTS = {
     "backspace": ("backspace", None), "delete": ("delete", None), "page_up": ("pageup", None),
     "page_down": ("pagedown", None), "top": ("ctrl+home", None), "bottom": ("ctrl+end", None),
     "scroll_up": (None, None), "scroll_down": (None, None),
+    "click": (None, None), "double_click": (None, None), "right_click": (None, None),
 }
 NEEDS_SAFE_TARGET = {"enter", "paste"}  # could run a command in a terminal
 
@@ -43,7 +44,9 @@ def shortcut(ctx: CommandContext, args: dict) -> str | None:
         return "Par sécurité, je n'agis pas dans un terminal."
     times = max(1, min(20, int(args.get("times") or 1)))
     for _ in range(times):
-        if action == "scroll_up":
+        if action in ("click", "double_click", "right_click"):
+            pcctl.click("right" if action == "right_click" else "left", double=action == "double_click")
+        elif action == "scroll_up":
             pcctl.scroll(5)
         elif action == "scroll_down":
             pcctl.scroll(-5)
@@ -120,6 +123,9 @@ COMMANDS = [
             (r"^(?:" + _KEY + r")?(?:echap|echappe|escape)$", {"action": "escape"}),
             (r"^(?:descends|defile|fais defiler|scrolle|scroll)(?: vers le bas| en bas| la page)?$", {"action": "scroll_down"}),
             (r"^(?:remonte|defile vers le haut|fais defiler vers le haut|scrolle vers le haut|monte la page)$", {"action": "scroll_up"}),
+            (r"^(?:clique|clic|click|cliquer)(?: ici| la| dessus)?$", {"action": "click"}),
+            (r"^(?:double[ -]?clique|double[ -]?clic|double[ -]?click)(?: ici| la| dessus)?$", {"action": "double_click"}),
+            (r"^(?:clic droit|clique droit|clique avec le bouton droit|right[ -]click)$", {"action": "right_click"}),
             (r"^(?:va |vas |aller )?tout en haut(?: de la page)?$", {"action": "top"}),
             (r"^(?:va |vas |aller )?tout en bas(?: de la page)?$", {"action": "bottom"}),
         ],

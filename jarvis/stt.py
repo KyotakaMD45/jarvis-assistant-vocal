@@ -188,7 +188,9 @@ class Listener:
     # to *trigger* a cloud check: Whisper must then confirm that "Jarvis" was really said.
     SOUNDALIKES = {"jarvi", "javis", "garvis", "charvis", "gervais", "j'avais", "gary", "garry", "jarry", "jarre",
                    "thierry", "service", "davis", "travis", "harvey", "jar", "jardin", "jarvisse", "charvi",
-                   "java", "jean", "louis", "larry", "jarvisme", "j avais", "avis"}
+                   "java", "jean", "louis", "larry", "jarvisme", "j avais", "avis",
+                   # "Apex"
+                   "atex", "apec", "apecs", "appex", "apax", "epee", "help", "pex", "apnee"}
 
     def _split_wake(self, text: str) -> tuple[bool, str]:
         """Return (wake word found, words after the last wake word)."""
@@ -203,9 +205,18 @@ class Listener:
             return True, " ".join(words[1:])
         return False, ""
 
+    @staticmethod
+    def _glue(text: str) -> str:
+        """Vosk sometimes spells the name "a p ex": glue it back before the wake word checks."""
+        return re.sub(r"\ba p ex\b", "apex", text)
+
     def _final(self) -> str:
         """Final result of the recognizer (best guess); keeps the other guesses in _last_alts."""
         res = json.loads(self._rec.Result())
+        for alt in res.get("alternatives", []):
+            alt["text"] = self._glue(alt.get("text", ""))
+        if "text" in res:
+            res["text"] = self._glue(res["text"])
         if "alternatives" in res:
             self._last_alts = [a.get("text", "").strip() for a in res["alternatives"]]
             return self._last_alts[0] if self._last_alts else ""
@@ -239,7 +250,8 @@ class Listener:
     @staticmethod
     def _split_wake_text(text: str) -> tuple[bool, str]:
         """Find "Jarvis" near the start of a Whisper transcript; return (found, the rest)."""
-        m = re.search(r"\b(?:jarvis|jarvi|javis|jarviss?e)\b[\s,.!?:;-]*", text, flags=re.IGNORECASE)
+        text = re.sub(r"\b[Aa]\.? ?[Pp]\.? ?[Ee]\.? ?[Xx]\b\.?", "Apex", text)  # "A.P.E.X." / "a p ex"
+        m = re.search(r"\b(?:jarvis|jarvi|javis|jarviss?e|apex|appex|apecs?)\b[\s,.!?:;-]*", text, flags=re.IGNORECASE)
         if m and not text[m.end():].strip(" ,.!?;:-") and text[:m.start()].strip(" ,.!?;:-"):
             # Name at the end: "Au revoir Jarvis." / "Ouvre WhatsApp, Jarvis."
             return True, text[:m.start()].strip(" ,.!?;:-")
@@ -251,14 +263,14 @@ class Listener:
         if sep and len(head.split()) <= 3:
             from jarvis.textnorm import simple
 
-            if any(re.match(r"^(?:j|g|ch)[ae]r\w*$|^ja\w*vi\w*$", w) for w in simple(head).split()):
+            if any(re.match(r"^(?:j|g|ch)[ae]r\w*$|^ja\w*vi\w*$|^h?a+p+[eiy]+(?:x|ks|cs|c|k)s?$", w) for w in simple(head).split()):
                 return True, rest.strip(" ,.!?;:-")
         # No comma: a Jarvis-like word among the first four words ("J'ai un Jardis ouvre WhatsApp").
         words = text.split()
         for i, word in enumerate(words[:4]):
             w = re.sub(r"[^a-zàâäéèêëïîôöùûüç']", "", word.lower())
             first_word_like = i == 0 and re.match(r"^(?:j|g|ch)[ae]rr?[a-zé]*$", w) and w not in ("jardin", "jardins", "garde", "gare", "garder", "char", "cher", "chère", "chez")
-            if first_word_like or re.match(r"^(?:jarvis|jardis|jarvi|javis|garvis|gervais|jarviss?e|jarrez)$", w):
+            if first_word_like or re.match(r"^(?:jarvis|jardis|jarvi|javis|garvis|gervais|jarviss?e|jarrez|apex|appex|apecs?|apax)$", w):
                 return True, " ".join(words[i + 1:]).strip(" ,.!?;:-")
         return False, text.strip(" ,.!?;:-")
 
@@ -269,7 +281,7 @@ class Listener:
 
         words = simple(text).split()
         return bool(words) and len(words) <= 3 and all(
-            re.match(r"^(?:jarvis|jardis|jarvi|javis|garvis|jarviss?e|jarrez|(?:j|g|ch)[ae]rr?[dv]is)$", w) for w in words)
+            re.match(r"^(?:jarvis|jardis|jarvi|javis|garvis|jarviss?e|jarrez|(?:j|g|ch)[ae]rr?[dv]is|apex|appex|apecs?|apax)$", w) for w in words)
 
     @staticmethod
     def _is_wake_only(spoken: str, vosk_heard_only_wake: bool) -> bool:
@@ -281,7 +293,7 @@ class Listener:
             return False
         if vosk_heard_only_wake:
             return True
-        return bool(re.match(r"^(?:j|g|ch)[ae]r\w*$|^ja?vi\w*$", words[0])) and len(words) <= 2
+        return bool(re.match(r"^(?:j|g|ch)[ae]r\w*$|^ja?vi\w*$|^h?a+p+[eiy]+(?:x|ks|cs|c|k)s?$", words[0])) and len(words) <= 2
 
     def listen(
         self,
@@ -357,6 +369,13 @@ class Listener:
                         found, after = self._split_wake_text(spoken)
                         if after and self._only_names(after):
                             after = ""  # "Jarvis. Jarvis." is a call, not a question
+                        if not found and not woke and self._maybe_wake(text):
+                            # The offline model heard a sound-alike of the name and Whisper wrote
+                            # "<one or two words>, <command>" ("Texte, ouvre Chrome" for "Apex, ouvre
+                            # Chrome"): the words before the comma are the badly heard name.
+                            head, sep, rest = spoken.partition(",")
+                            if sep and len(head.split()) <= 2 and rest.strip(" ,.!?;:-"):
+                                found, after = True, rest.strip(" ,.!?;:-")
                         if not found and self._is_wake_only(spoken, vosk_wake and not vosk_after):
                             found, after = True, ""  # "J'avis.", "Jardim.", "Jarrez." = just "Jarvis"
                         if vosk_wake and not found:

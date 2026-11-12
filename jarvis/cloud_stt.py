@@ -21,7 +21,7 @@ SAMPLE_RATE = 16000
 # Spelling hints: Whisper writes these words correctly when they appear in the prompt.
 # Kept to one word on purpose: Whisper copies longer prompts into its output on short or
 # unclear audio (it once "heard" a whole example sentence and opened WhatsApp).
-PROMPT = "Jarvis."
+PROMPT = "Apex."
 # Text Whisper is known to invent on silence or noise.
 _HALLUCINATIONS = re.compile(
     r"(sous-titr|amara\.org|merci d'avoir regard|abonnez-vous|merci de votre attention|^\W*merci\.?\W*$|^\W*$)",
@@ -49,6 +49,10 @@ class GroqWhisper:
     def __init__(self, cfg: dict):
         self.ai = cfg["ai"]
         self.model = cfg["listening"]["cloud_model"]
+        # Languages the user speaks: with several, Whisper detects which one (no slower, and an
+        # English sentence is no longer forced into French words). The first is the fallback.
+        self.languages = [str(x).lower()[:2] for x in cfg["listening"].get("languages", ["fr"])] or ["fr"]
+        self.last_language = self.languages[0]
         self._client = None
         self._key = ""
         self.last_error = ""
@@ -84,12 +88,28 @@ class GroqWhisper:
         if len(pcm) < SAMPLE_RATE * 2 * 0.3:  # less than 0.3 s of audio
             return ""
         started = time.perf_counter()
+        wav = _wav_bytes(pcm)
+        prompt = {"prompt": PROMPT} if wake_hint else {}
         try:
-            result = self._get_client().audio.transcriptions.create(
-                model=self.model, file=("speech.wav", _wav_bytes(pcm), "audio/wav"),
-                language="fr", temperature=0, response_format="json",
-                **({"prompt": PROMPT} if wake_hint else {}),
-            )
+            client = self._get_client()
+            if len(self.languages) == 1:
+                result = client.audio.transcriptions.create(
+                    model=self.model, file=("speech.wav", wav, "audio/wav"), language=self.languages[0],
+                    temperature=0, response_format="json", **prompt)
+                self.last_language = self.languages[0]
+            else:
+                result = client.audio.transcriptions.create(
+                    model=self.model, file=("speech.wav", wav, "audio/wav"),
+                    temperature=0, response_format="verbose_json", **prompt)
+                detected = str(getattr(result, "language", "") or "").lower()
+                code = {"french": "fr", "english": "en"}.get(detected, detected[:2])
+                if code not in self.languages:
+                    # Another language detected on a short or noisy clip: use the main language.
+                    result = client.audio.transcriptions.create(
+                        model=self.model, file=("speech.wav", wav, "audio/wav"), language=self.languages[0],
+                        temperature=0, response_format="json", **prompt)
+                    code = self.languages[0]
+                self.last_language = code
         except Exception as exc:  # noqa: BLE001 - offline, quota, bad key...: fall back to Vosk
             self.last_error = f"{exc.__class__.__name__}: {exc}"
             log.warning("Cloud transcription failed, using the offline text: %s", self.last_error[:200])
@@ -98,6 +118,6 @@ class GroqWhisper:
         if _HALLUCINATIONS.search(text):
             log.info("Cloud transcription ignored (noise): %r", text)
             return ""
-        log.info("Whisper heard: %r (%.2fs, %.1fs of audio)", text, time.perf_counter() - started,
-                 len(pcm) / (SAMPLE_RATE * 2))
+        log.info("Whisper heard: %r [%s] (%.2fs, %.1fs of audio)", text, self.last_language,
+                 time.perf_counter() - started, len(pcm) / (SAMPLE_RATE * 2))
         return text

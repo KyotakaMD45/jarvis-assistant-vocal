@@ -89,6 +89,21 @@ def scroll(notches: int) -> None:
     user32.SendInput(1, ctypes.byref(event), ctypes.sizeof(_Input))
 
 
+MOUSE_BUTTONS = {"left": (0x0002, 0x0004), "right": (0x0008, 0x0010)}
+
+
+def click(button: str = "left", double: bool = False) -> None:
+    """Click where the mouse pointer is."""
+    down, up = MOUSE_BUTTONS[button]
+    events = []
+    for _ in range(2 if double else 1):
+        for flag in (down, up):
+            events.append(_Input(type=INPUT_MOUSE, u=_InputUnion(mi=_MouseInput(dx=0, dy=0, mouseData=0, dwFlags=flag,
+                                                                                  time=0, dwExtraInfo=0))))
+    array = (_Input * len(events))(*events)
+    user32.SendInput(len(events), array, ctypes.sizeof(_Input))
+
+
 # ---------------------------------------------------------------------------------------
 # Clipboard (Unicode text)
 # ---------------------------------------------------------------------------------------
@@ -129,6 +144,18 @@ def get_clipboard() -> str | None:
         user32.CloseClipboard()
 
 
+def paste_text(text: str) -> bool:
+    """Type text in the focused field through the clipboard (exact, fast), then restore the clipboard."""
+    previous = get_clipboard()
+    if not set_clipboard(text):
+        return False
+    send_combo("ctrl+v")
+    time.sleep(0.5)
+    if previous is not None:
+        set_clipboard(previous)
+    return True
+
+
 def set_clipboard(text: str) -> bool:
     data = ctypes.create_unicode_buffer(text)
     size = ctypes.sizeof(data)
@@ -157,7 +184,7 @@ user32.GetClassNameW.argtypes = [wt.HWND, wt.LPWSTR, ctypes.c_int]
 user32.GetWindowTextW.argtypes = [wt.HWND, wt.LPWSTR, ctypes.c_int]
 user32.GetWindowThreadProcessId.argtypes = [wt.HWND, ctypes.POINTER(wt.DWORD)]
 
-HUD_TITLES = ("J.A.R.V.I.S.", "Jarvis")
+HUD_TITLES = ("A.P.E.X.", "Apex", "J.A.R.V.I.S.", "Jarvis")
 SHELL_CLASSES = {"ConsoleWindowClass", "CASCADIA_HOSTING_WINDOW_CLASS", "PseudoConsoleWindow", "mintty",
                  "VirtualConsoleClass", "PuTTY"}
 RUN_TITLES = {"exécuter", "executer", "run"}

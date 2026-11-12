@@ -28,7 +28,7 @@ log = get_logger(__name__)
 
 # What Jarvis *says* (French); the console/HUD shows the detailed English message.
 SPOKEN = {
-    "online": "Jarvis en ligne.",
+    "online": "Apex en ligne.",
     "no_mic": "Je n'ai pas accès au micro. Vous pouvez taper vos commandes.",
     "mic_lost": "J'ai perdu le micro. J'essaie de le reconnecter.",
     "auth": "La clé d'accès de l'intelligence artificielle n'est pas valide. Lancez le test pour plus de détails.",
@@ -47,9 +47,28 @@ _ERROR_TO_SPOKEN = {
     "connection": "connection", "timeout": "timeout", "rate_limit": "limit", "billing": "limit",
     "server": "server", "refusal": "refusal", "not_found": "not_found", "bad_tool": "bad_tool",
 }
-BARGE_WORDS = {"stop", "arrete", "attends", "attend", "tais", "pause", "silence", "non", "jarvis"}
+BARGE_WORDS = {"stop", "arrete", "attends", "attend", "tais", "pause", "silence", "non", "jarvis", "apex", "wait", "no"}
 YES = {"oui", "ouais", "oui oui", "oui vas y", "oui vas-y", "vas y", "vas-y", "confirme", "je confirme", "d'accord",
-       "d accord", "ok", "okay", "exactement", "bien sur", "affirmatif", "oui s'il te plait", "oui merci", "c'est ca"}
+       "d accord", "ok", "okay", "exactement", "bien sur", "affirmatif", "oui s'il te plait", "oui merci", "c'est ca",
+       "yes", "yeah", "yep", "sure", "do it", "go ahead", "confirm", "of course", "yes please", "absolutely", "correct"}
+_EN_WORDS = {"the", "a", "an", "is", "are", "what", "whats", "what's", "open", "close", "please", "can", "could", "you",
+             "my", "to", "it", "this", "that", "how", "why", "turn", "set", "write", "send", "show", "take", "me", "and",
+             "of", "in", "on", "for", "with", "i", "i'm", "do", "does", "tell", "play", "stop", "who", "where", "when",
+             "your", "hey", "hello", "thanks", "thank", "be", "go", "find", "search", "make", "give", "time", "today"}
+_FR_WORDS = {"le", "la", "les", "un", "une", "est", "et", "de", "du", "des", "ouvre", "ferme", "quel", "quelle", "je",
+             "tu", "moi", "mets", "ca", "pour", "avec", "dans", "sur", "qui", "que", "quoi", "comment", "pourquoi",
+             "il", "elle", "on", "pas", "ne", "mon", "ma", "mes", "ton", "ta", "au", "aux", "c'est", "fais", "dis",
+             "bonjour", "merci", "salut", "ecris", "envoie", "cherche", "baisse", "monte", "joue", "a", "en"}
+
+
+def guess_language(text: str, hint: str | None = None) -> str:
+    """"en" or "fr" for a sentence (word counts; Whisper's detection breaks ties)."""
+    words = simple(text).replace("'", "' ").split()
+    en = sum(w.strip("'") in _EN_WORDS or w in _EN_WORDS for w in words)
+    fr = sum(w.strip("'") in _FR_WORDS or w in _FR_WORDS for w in words)
+    if en != fr:
+        return "en" if en > fr else "fr"
+    return hint if hint in ("fr", "en") else "fr"
 
 
 def spoken_error(err: BrainError) -> str:
@@ -109,7 +128,7 @@ class VoiceAssistant:
     def announce(self, text: str) -> None:
         """Say something as soon as possible (reminders). Also shown as a notification."""
         self._announcements.put(text)
-        self.notify("Jarvis", text)
+        self.notify(self.cfg["assistant_name"], text)
 
     def request_stop(self) -> None:
         self._stop.set()
@@ -242,6 +261,7 @@ class VoiceAssistant:
 
     def ask_yes_no(self, question: str) -> bool:
         """Ask a question and wait for "oui" (spoken, or typed in the HUD)."""
+        question = self._localize(question) or question
         self.say(question)
         answer = None
         if self.mic_ok and self.listening_enabled:
@@ -260,7 +280,7 @@ class VoiceAssistant:
         print(f"You > {answer}")
         self.ui.log("user", answer or "(pas de réponse)")
         self._set_state("thinking")
-        return simple(answer) in YES or simple(answer).startswith("oui")
+        return simple(answer) in YES or simple(answer).startswith(("oui", "yes", "yeah"))
 
     def voice_test(self) -> None:
         v = self.cfg["voice"]
@@ -281,7 +301,49 @@ class VoiceAssistant:
 
     # A request with several steps ("ouvre VS Code ET écris..."): after the first actions, the AI
     # is asked for the next step (at most MAX_STEPS rounds).
-    MULTI_STEP = re.compile(r"\b(?:et|puis|ensuite|apres|après|avant de|et puis)\b", re.IGNORECASE)
+    MULTI_STEP = re.compile(r"\b(?:et|puis|ensuite|apres|après|avant de|et puis|and|then|after that)\b", re.IGNORECASE)
+    ACTION_TEXT = re.compile(r"\[action (\w+) (\{.*?\})\]", re.DOTALL)
+
+    @staticmethod
+    def _hide_action_text(stream, sink: list):
+        """Some models occasionally *write* "[action name {...}]" instead of calling the tool: never
+        say that aloud; it is collected in `sink` and run as a real action afterwards."""
+        buf, passthrough = "", False
+        for chunk in stream:
+            if passthrough:
+                yield chunk
+                continue
+            buf += chunk
+            if len(buf.lstrip()) >= 8:
+                if buf.lstrip().startswith("[action"):
+                    sink.append(buf)
+                    for rest in stream:
+                        sink.append(rest)
+                    return
+                passthrough = True
+                yield buf
+        if not passthrough and buf:
+            if buf.lstrip().startswith("[action"):
+                sink.append(buf)
+            else:
+                yield buf
+
+    def _parse_action_text(self, text: str) -> list:
+        import ast
+
+        from jarvis.providers.base import ToolCall
+
+        calls = []
+        for name, raw in self.ACTION_TEXT.findall(text):
+            try:
+                args = ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                continue
+            if isinstance(args, dict) and commands.get(name) is not None:
+                calls.append(ToolCall(name, args))
+        if calls:
+            log.warning("The AI wrote its action as text; running it: %s", [c.name for c in calls])
+        return calls
     MAX_STEPS = 3
     # Words that suggest an action on the PC. Without any of them (a plain question, a chat), the AI
     # is called without the tool list: ~300 tokens instead of ~2300, faster and lighter on the quota.
@@ -293,7 +355,13 @@ class VoiceAssistant:
         r"regard|tourn|captur|batteri|ram|memoire|processeur|cpu|disque|ip|bureau|passe|change|bascul|affich|montr|"
         r"supprim|vid|musique|chanson|youtube|spotify|code|programme|script|site|page|google|navigat|groq|claude|"
         r"gemini|openai|gpt|mode sombre|mode clair|zoom|defil|descend|remont|selection|actualis|rafraich|appli|"
-        r"ordi|pc|windows|clavier|souris|mail|message|whatsapp|discord|chrome|edge|word|excel|vs|notepad|bloc)",
+        r"ordi|pc|windows|clavier|souris|mail|message|whatsapp|discord|chrome|edge|word|excel|vs|notepad|bloc|"
+        r"texte|selection|tradui|corrig|resum|reformul|chatgpt|perplexity|envoi|cliqu|clic|"
+        # English
+        r"open|close|launch|start|type|write|copy|paste|save|search|find|play|next|previous|mute|bright|screen|"
+        r"setting|file|folder|trash|bin|remind|alarm|screenshot|battery|memory|disk|desktop|switch|show|delete|"
+        r"music|song|email|send|tab|window|scroll|select|refresh|reload|lock|sleep|shut|restart|dark|light|"
+        r"translate|summari|fix|rewrite|ask|click|turn|set|volume|sound)",
         re.IGNORECASE)
 
     def _needs_tools(self, text: str) -> bool:
@@ -350,7 +418,7 @@ class VoiceAssistant:
             from jarvis import pcctl
 
             pcctl.mark_app_opened()  # so that a following "type_text" waits for the new window
-        result = commands.execute(command, args, self._context(from_ai))
+        result = self._localize(commands.execute(command, args, self._context(from_ai)))
         log.info("Command %s -> %r", command.name, result)
         if command.name in self.OPENS_WINDOW and result and not result.startswith(("Je n'ai pas", "Désolé")):
             self.on_minimize_hud()
@@ -414,7 +482,11 @@ class VoiceAssistant:
         try:
             try:
                 prompt = text if not alternative else f"{text}\n(autre transcription possible : « {alternative} »)"
-                self.speaker.speak_stream(self.brain.ask(prompt, tools=tools), on_text=on_text)
+                if getattr(self, "_turn_lang", "fr") == "en":
+                    prompt += "\n(The user is speaking English: answer in English.)"
+                hidden: list[str] = []
+                self.speaker.speak_stream(self._hide_action_text(self.brain.ask(prompt, tools=tools), hidden),
+                                          on_text=on_text)
             finally:
                 monitor_stop.set()
                 if monitor is not None:
@@ -430,7 +502,12 @@ class VoiceAssistant:
             delay = self.speaker.first_audio_delay
             if delay:
                 log.info("Voice answer: first audio %.2fs after the command was recognized", delay)
-            done = self._run_tool_calls(self.brain.last_tool_calls)
+            calls = list(self.brain.last_tool_calls) + (self._parse_action_text("".join(hidden)) if hidden else [])
+            done = self._run_tool_calls(calls)
+            results = [r for _n, _a, r in done if r]
+            if results and self.brain.history and self.brain.history[-1]["role"] == "assistant":
+                # Keep what was actually said ("J'ouvre Chrome.") as the memory of this turn.
+                self.brain.history[-1]["content"] = " ".join(results)[:500]
             self._continue_steps(text, done)
             self.ui.status(network="ONLINE", voice=self._voice_status())
             return True
@@ -549,7 +626,15 @@ class VoiceAssistant:
         item = self._next_input_raw(follow_up)
         if item is not None and item[0] == "command":
             self._alternative = self.listener.last_alternative
+            stt = getattr(self.listener, "transcriber", None)
+            self._turn_lang = guess_language(item[1], getattr(stt, "last_language", None))
         return item
+
+    def _localize(self, text: str | None) -> str | None:
+        """Action messages are written in French; say them in English when the user spoke English."""
+        if text and getattr(self, "_turn_lang", "fr") == "en":
+            return self.brain.translate(text, "en")
+        return text
 
     def _next_input_raw(self, follow_up: bool) -> tuple[str, str] | None:
         if self._pending_command:
