@@ -484,7 +484,7 @@ class Listener:
                 # invent a sentence for it ("J'ai une petite question"), so trust Vosk here.
                 if cloud is not None and not (vosk_wake and not vosk_after):
                     # Spelling hint "Jarvis" only while waiting for the name (see GroqWhisper.transcribe).
-                    spoken = cloud.transcribe(audio, wake_hint=not woke or vosk_wake or grammar_hit)
+                    spoken = cloud.transcribe(audio, wake_hint=not woke or vosk_wake or grammar_hit, offline=text)
                     if spoken is not None:  # the cloud answered (None = failure -> offline text below)
                         found, after = self._split_wake_text(spoken)
                         if after and self._only_names(after):
@@ -618,7 +618,7 @@ class Listener:
         cloud = self.transcriber if (self.transcriber is not None and self.transcriber.available()) else None
         final_text = final_text or last_partial
         if cloud is not None:
-            spoken = cloud.transcribe(audio, wake_hint=False)
+            spoken = cloud.transcribe(audio, wake_hint=False, offline=final_text)
             if spoken and not self._only_names(spoken):
                 final_text = spoken
         found, after = self._split_wake_text(final_text)

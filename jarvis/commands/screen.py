@@ -22,6 +22,12 @@ def _window():
 def look(ctx: CommandContext, args: dict) -> str | None:
     from jarvis import uictl
 
+    return uictl.run(_look, ctx, args)
+
+
+def _look(ctx: CommandContext, args: dict) -> str | None:
+    from jarvis import uictl
+
     hwnd = _window()
     if not hwnd:
         return "Je ne vois aucune fenêtre ouverte."
@@ -30,6 +36,12 @@ def look(ctx: CommandContext, args: dict) -> str | None:
 
 
 def click_element(ctx: CommandContext, args: dict) -> str | None:
+    from jarvis import uictl
+
+    return uictl.run(_click_element, ctx, args)
+
+
+def _click_element(ctx: CommandContext, args: dict) -> str | None:
     from jarvis import uictl
 
     name = (args.get("name") or "").strip()
@@ -46,6 +58,12 @@ def click_element(ctx: CommandContext, args: dict) -> str | None:
 
 
 def fill_field(ctx: CommandContext, args: dict) -> str | None:
+    from jarvis import uictl
+
+    return uictl.run(_fill_field, ctx, args)
+
+
+def _fill_field(ctx: CommandContext, args: dict) -> str | None:
     from jarvis import uictl
 
     field, text = (args.get("field") or "").strip(), args.get("text") or ""

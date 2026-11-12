@@ -22,6 +22,24 @@ INTERACTIVE = {"ButtonControl", "EditControl", "ListItemControl", "DataItemContr
                "TreeItemControl", "SplitButtonControl"}
 
 
+_executor = None
+
+
+def run(fn, *args, **kwargs):
+    """Run fn in the dedicated UI Automation thread. The library initialises COM for the thread
+    that imports it; in Knull the assistant thread already uses another COM mode (window, voice),
+    which made the import fail ("Impossible de modifier le mode thread...")."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    global _executor
+    if threading.current_thread().name.startswith("uia"):
+        return fn(*args, **kwargs)
+    if _executor is None:
+        _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="uia")
+    return _executor.submit(fn, *args, **kwargs).result()
+
+
 def _auto():
     import uiautomation as auto  # imported lazily (COM initialisation, ~0.3 s)
 

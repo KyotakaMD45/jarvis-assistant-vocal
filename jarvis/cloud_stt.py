@@ -79,7 +79,11 @@ class GroqWhisper:
         except Exception:  # noqa: BLE001
             log.exception("Cloud speech recognition warm-up failed")
 
-    def transcribe(self, pcm: bytes, wake_hint: bool = True) -> str | None:
+    # Short French answers that Whisper's language detection turns into English ("oui" -> "Bye.").
+    FRENCH_SHORT = {"oui", "non", "merci", "salut", "ouais", "d'accord", "daccord", "vas-y", "vas y", "ok merci",
+                    "oui merci", "non merci", "bonjour", "bonsoir", "voila", "exactement", "bien sur"}
+
+    def transcribe(self, pcm: bytes, wake_hint: bool = True, offline: str = "") -> str | None:
         """Return the text, "" for silence/noise, or None if the cloud failed (use the offline text).
 
         wake_hint=True gives Whisper the spelling of "Jarvis" (to detect the wake word). It must be
@@ -92,10 +96,14 @@ class GroqWhisper:
         prompt = {"prompt": PROMPT} if wake_hint else {}
         try:
             client = self._get_client()
-            # Language detection is unreliable on very short clips ("oui" came back as "Bye." and
-            # "We are one."): under 1.8 s, use the main language.
-            short = len(pcm) < SAMPLE_RATE * 2 * 1.8
-            if len(self.languages) == 1 or short:
+            # Language detection is unreliable on short clips ("oui" came back as "Bye."): when the
+            # offline (French) model clearly heard a short French answer, keep French.
+            from jarvis.textnorm import simple
+
+            heard = simple(offline or "")
+            french_answer = len(pcm) < SAMPLE_RATE * 2 * 2.5 and (
+                heard in self.FRENCH_SHORT or heard.split()[:1] in (["oui"], ["non"], ["merci"], ["salut"]))
+            if len(self.languages) == 1 or french_answer:
                 result = client.audio.transcriptions.create(
                     model=self.model, file=("speech.wav", wav, "audio/wav"), language=self.languages[0],
                     temperature=0, response_format="json", **prompt)

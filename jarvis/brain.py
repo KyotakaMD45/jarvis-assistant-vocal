@@ -23,7 +23,8 @@ __all__ = ["Brain", "BrainError", "ToolCall"]
 SPEECH_PROMPT = (
     "\n\nLes messages de l'utilisateur viennent d'une reconnaissance vocale qui peut se tromper : homophones "
     "(« mais » pour « mets », « sa » pour « ça », « l'anglais » pour « l'onglet »), mots coupés, noms déformés "
-    "(« Chad JPT » pour ChatGPT, « viscose » pour VS Code), ponctuation absente. Comprends l'intention la plus "
+    "(« Chad JPT » pour ChatGPT, « viscose » pour VS Code), « au revoir » entendu à la place de « envoie » "
+    "(« au revoir salut à Paul » = « envoie salut à Paul »), ponctuation absente. Comprends l'intention la plus "
     "probable en t'aidant de la conversation précédente et de la fenêtre active. Si une « autre transcription » "
     "est fournie, choisis la version la plus plausible. Si l'utilisateur se corrige (« non, je voulais dire… », "
     "« pas ça »), applique la correction à sa demande précédente. Une phrase courte qui suit ta réponse est souvent "
@@ -179,6 +180,15 @@ class Brain:
     def _system_prompt(self, with_tools: bool) -> str:
         now = datetime.now()
         prompt = self.ai["system_prompt"] + SPEECH_PROMPT + f"\n\nDate et heure locales : {now:%A %d %B %Y, %H:%M}."
+        try:
+            from jarvis.commands.work import known_contacts
+
+            contacts = known_contacts()
+        except Exception:  # noqa: BLE001
+            contacts = []
+        if contacts:
+            prompt += ("\nContacts WhatsApp connus (corrige vers le plus proche un nom mal entendu, ex. « Benny Mahou » "
+                       "-> « Benimaru ») : " + ", ".join(contacts[:20]) + ".")
         window = _active_window_title()
         if window:
             prompt += f"\nFenêtre active de l'utilisateur : « {window} »."

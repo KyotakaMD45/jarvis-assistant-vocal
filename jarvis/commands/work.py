@@ -34,6 +34,23 @@ def _contact(ctx: CommandContext, name: str) -> dict:
     return {}
 
 
+def known_contacts() -> list[str]:
+    from jarvis.state import load_state
+
+    return [c for c in load_state().get("known_contacts", []) if isinstance(c, str)]
+
+
+def _remember_contact(name: str) -> None:
+    """Contacts reached once are given to the AI, which then fixes misheard names ("Benny Mahou")."""
+    from jarvis.state import save_state
+
+    name = name.strip()
+    if not name:
+        return
+    names = [n for n in known_contacts() if n.lower() != name.lower()]
+    save_state(known_contacts=([name] + names)[:40])
+
+
 def _email_address(ctx: CommandContext, contact: str) -> str:
     if "@" in (contact or ""):
         return contact.strip()
@@ -47,7 +64,9 @@ def send_message(ctx: CommandContext, args: dict) -> str:
         return "À qui, et quel message ?"
     if app == "email":
         return _send_email(ctx, contact, text, (args.get("subject") or "").strip())
-    return _send_whatsapp(ctx, contact, text)
+    from jarvis import uictl
+
+    return uictl.run(_send_whatsapp, ctx, contact, text)
 
 
 _SEARCH = re.compile(r"recherch|search", re.IGNORECASE)
@@ -155,6 +174,7 @@ def _send_whatsapp(ctx: CommandContext, contact: str, text: str) -> str:
         now = _composer(uictl.elements(hwnd, kinds={"EditControl"}))
         if now and not uictl.value_of(now[0]).strip():
             log.info("WhatsApp message sent and verified (%s)", shown)
+            _remember_contact(shown)
             return f"Message envoyé à {shown}, monsieur."
     log.warning("WhatsApp send could not be verified (%s)", shown)
     return f"J'ai appuyé sur envoyer, mais je n'arrive pas à le vérifier. Vérifiez WhatsApp, s'il vous plaît."
