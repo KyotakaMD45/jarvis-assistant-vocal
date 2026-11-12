@@ -107,7 +107,7 @@ class Listener:
         if self.cfg.get("wake_grammar", True):
             # A recognizer that only knows "jarvis": much more sensitive to the wake word than the
             # general model (87% vs 50% in tests), but with false alarms, so Whisper confirms them.
-            words = [w for w in self.wake_words if " " not in w] or ["jarvis"]
+            words = [("null" if w == "knull" else w) for w in self.wake_words if " " not in w] or ["jarvis"]
             self._wake_rec = vosk.KaldiRecognizer(self._model, SAMPLE_RATE, json.dumps(words + ["[unk]"]))
         nbest = int(self.cfg.get("wake_nbest", 0))
         if nbest > 1:
@@ -190,7 +190,9 @@ class Listener:
                    "thierry", "service", "davis", "travis", "harvey", "jar", "jardin", "jarvisse", "charvi",
                    "java", "jean", "louis", "larry", "jarvisme", "j avais", "avis",
                    # "Apex"
-                   "atex", "apec", "apecs", "appex", "apax", "epee", "help", "pex", "apnee"}
+                   "atex", "apec", "apecs", "appex", "apax", "epee", "help", "pex", "apnee", "cnl",
+                   # "Knull" (the offline model writes "nul", "null", "cnil", "knoll"...)
+                   "nul", "nulle", "nuls", "null", "knull", "knoll", "cnil", "neul", "nole", "klaus"}
 
     def _split_wake(self, text: str) -> tuple[bool, str]:
         """Return (wake word found, words after the last wake word)."""
@@ -251,6 +253,16 @@ class Listener:
     def _split_wake_text(text: str) -> tuple[bool, str]:
         """Find "Jarvis" near the start of a Whisper transcript; return (found, the rest)."""
         text = re.sub(r"\b[Aa]\.? ?[Pp]\.? ?[Ee]\.? ?[Xx]\b\.?", "Apex", text)  # "A.P.E.X." / "a p ex"
+        # "Knull" (and how Whisper may spell it) only counts at the very start of the sentence, maybe
+        # after "hey/ok/dis" ("c'est nul" must not wake it up), or at the very end after a comma.
+        greeting = r"^\s*(?:(?:hey|h[ée]|eh|ok|okay|dis|yo|salut|bonjour)[\s,]+)?"
+        k = re.match(greeting + r"(?:k[- ]?nu+ll?|knoll|k[- ]?noll)\b[\s,.!?:;-]*", text, flags=re.IGNORECASE) \
+            or re.match(greeting + r"(?:nu+ll?e?|noll|neul)\s*[,.!?:;]+\s*", text, flags=re.IGNORECASE)  # "Nul, …" not "Nul n'est…"
+        if k:
+            return True, text[k.end():].strip(" ,.!?;:-")
+        k = re.search(r",\s*(?:k[- ]?nu+ll?|knoll)\s*[.!?]*\s*$", text, flags=re.IGNORECASE)
+        if k and text[:k.start()].strip(" ,.!?;:-"):
+            return True, text[:k.start()].strip(" ,.!?;:-")
         m = re.search(r"\b(?:jarvis|jarvi|javis|jarviss?e|apex|appex|apecs?)\b[\s,.!?:;-]*", text, flags=re.IGNORECASE)
         if m and not text[m.end():].strip(" ,.!?;:-") and text[:m.start()].strip(" ,.!?;:-"):
             # Name at the end: "Au revoir Jarvis." / "Ouvre WhatsApp, Jarvis."
@@ -274,6 +286,29 @@ class Listener:
                 return True, " ".join(words[i + 1:]).strip(" ,.!?;:-")
         return False, text.strip(" ,.!?;:-")
 
+    # How the offline model writes "Knull" at the start of a sentence.
+    KNULL_LIKE = {"nul", "nulle", "nuls", "null", "knull", "knoll", "cnil", "cnl", "neul", "nole", "klaus", "pneu", "pneus"}
+
+    @classmethod
+    def _dropped_name(cls, vosk_text: str, spoken: str, grammar: str) -> tuple[bool, str]:
+        """Whisper often leaves out a name it does not know ("Knull, ouvre Chrome" -> "ouvre Chrome").
+        If the offline model heard a Knull-like word first and Whisper's text is the rest of what it
+        heard, the name was there. ("Nul n'est parfait": Whisper keeps "Nul", so it does not count.)"""
+        import difflib
+
+        from jarvis.textnorm import simple
+
+        vw, sw = simple(vosk_text).split(), simple(spoken).split()
+        grammar_null = "null" in grammar.split()[:1]
+        if not vw or not (vw[0] in cls.KNULL_LIKE or grammar_null):
+            return False, ""
+        if len(vw) == 1:
+            return (grammar_null and len(sw) <= 1), ""  # just "Knull"
+        if not sw or sw[0] == vw[0] or sw[0] in cls.KNULL_LIKE:
+            return False, ""
+        ratio = difflib.SequenceMatcher(None, " ".join(vw[1:]), " ".join(sw)).ratio()
+        return (True, spoken.strip(" ,.!?;:-")) if ratio >= 0.55 else (False, "")
+
     @staticmethod
     def _only_names(text: str) -> bool:
         """The text is just the name, possibly repeated: "Jarvis. Jarvis." / "Jardis Jardis"."""
@@ -281,7 +316,7 @@ class Listener:
 
         words = simple(text).split()
         return bool(words) and len(words) <= 3 and all(
-            re.match(r"^(?:jarvis|jardis|jarvi|javis|garvis|jarviss?e|jarrez|(?:j|g|ch)[ae]rr?[dv]is|apex|appex|apecs?|apax)$", w) for w in words)
+            re.match(r"^(?:jarvis|jardis|jarvi|javis|garvis|jarviss?e|jarrez|(?:j|g|ch)[ae]rr?[dv]is|apex|appex|apecs?|apax|knull|null|nul|knoll)$", w) for w in words)
 
     @staticmethod
     def _is_wake_only(spoken: str, vosk_heard_only_wake: bool) -> bool:
@@ -293,7 +328,8 @@ class Listener:
             return False
         if vosk_heard_only_wake:
             return True
-        return bool(re.match(r"^(?:j|g|ch)[ae]r\w*$|^ja?vi\w*$|^h?a+p+[eiy]+(?:x|ks|cs|c|k)s?$", words[0])) and len(words) <= 2
+        return bool(re.match(r"^(?:j|g|ch)[ae]r\w*$|^ja?vi\w*$|^h?a+p+[eiy]+(?:x|ks|cs|c|k)s?$|^k?nu+ll?e?s?$|^knoll$",
+                             words[0])) and len(words) <= 2
 
     def listen(
         self,
@@ -352,9 +388,10 @@ class Listener:
                 vosk_wake, vosk_after = self._split_wake(text)
                 cloud = self.transcriber if (self.transcriber is not None and self.transcriber.available()) else None
                 grammar_hit = False
+                heard = ""
                 if self._wake_rec is not None:
                     heard = json.loads(self._wake_rec.FinalResult()).get("text", "")
-                    grammar_hit = any(w in self.wake_words for w in heard.split()[:2])
+                    grammar_hit = any(w in self.wake_words or w == "null" for w in heard.split()[:2])
 
                 if not woke and not vosk_wake:
                     maybe = self._maybe_wake(text) or grammar_hit
@@ -376,6 +413,10 @@ class Listener:
                             head, sep, rest = spoken.partition(",")
                             if sep and len(head.split()) <= 2 and rest.strip(" ,.!?;:-"):
                                 found, after = True, rest.strip(" ,.!?;:-")
+                        if not found and not woke:
+                            found, after = self._dropped_name(text, spoken, heard if self._wake_rec is not None else "")
+                            if found:
+                                log.info("Name dropped by Whisper, offline model heard it: %r", text)
                         if not found and self._is_wake_only(spoken, vosk_wake and not vosk_after):
                             found, after = True, ""  # "J'avis.", "Jardim.", "Jarrez." = just "Jarvis"
                         if vosk_wake and not found:

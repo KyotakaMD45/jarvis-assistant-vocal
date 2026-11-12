@@ -27,7 +27,7 @@ EDGE_PATHS = [
 
 
 class HudWindow:
-    def __init__(self, url: str, hud_cfg: dict, title: str = "A.P.E.X."):
+    def __init__(self, url: str, hud_cfg: dict, title: str = "K.N.U.L.L."):
         self.url = url
         self.cfg = hud_cfg
         self.title = title

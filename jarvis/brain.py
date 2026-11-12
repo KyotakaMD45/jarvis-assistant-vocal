@@ -52,6 +52,10 @@ TOOLS_PROMPT = (
     "Pour « ce texte », « ça », « la sélection » (résumer, traduire, corriger, reformuler, expliquer), utilise "
     "selected_text. Pour envoyer un message (WhatsApp ou mail), utilise send_message : l'utilisateur confirmera. "
     "Pour « demande à Claude / ChatGPT / Perplexity », utilise ask_web_ai. "
+    "Tu utilises le PC comme son propriétaire le ferait, comme un humain : pour agir dans une application "
+    "(boutons, menus, champs), regarde d'abord avec screen_look, puis utilise click_element et fill_field. "
+    "N'appuie jamais sur une touche au hasard. Si aucune action ne permet de faire la demande (par exemple "
+    "supprimer un message déjà envoyé), dis-le franchement en une phrase. "
     "Sinon, réponds normalement."
 )
 
@@ -191,17 +195,24 @@ class Brain:
         parts: list[str] = []
         started = time.perf_counter()
         first_token_at = None
-        try:
-            for text in provider.stream(self._system_prompt(bool(tools)), messages, tools):
-                if first_token_at is None:
-                    first_token_at = time.perf_counter() - started
-                parts.append(text)
-                yield text
-        except BrainError as err:
-            log.error("%s request failed [%s]: %s", self.label, err.kind, err.message)
-            if parts and not err.message.startswith("(answer interrupted)"):
-                err.message = "(answer interrupted) " + err.message
-            raise
+        for attempt in range(2):
+            try:
+                for text in provider.stream(self._system_prompt(bool(tools)), messages, tools):
+                    if first_token_at is None:
+                        first_token_at = time.perf_counter() - started
+                    parts.append(text)
+                    yield text
+                break
+            except BrainError as err:
+                # The model sometimes writes malformed action arguments: one silent retry fixes it.
+                malformed = any(k in err.message.lower() for k in ("parse tool call", "tool_use_failed", "failed to call a function"))
+                if malformed and attempt == 0 and not parts:
+                    log.warning("%s sent a malformed action, retrying once", self.label)
+                    continue
+                log.error("%s request failed [%s]: %s", self.label, err.kind, err.message)
+                if parts and not err.message.startswith("(answer interrupted)"):
+                    err.message = "(answer interrupted) " + err.message
+                raise
         answer = "".join(parts).strip()
         self.last_tool_calls = list(provider.tool_calls)
         total = time.perf_counter() - started

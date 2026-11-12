@@ -689,7 +689,7 @@
       });
       if (!r.ok) addLog("system", `Request rejected (${r.status}).`);
     } catch {
-      addLog("system", "Apex is not reachable.");
+      addLog("system", "Knull is not reachable.");
     }
   }
   const action = (name, value) => post("/api/action", { action: name, value: value || "" });

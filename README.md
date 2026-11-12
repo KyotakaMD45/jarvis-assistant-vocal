@@ -1,13 +1,13 @@
-# A.P.E.X. — voice assistant for Windows (French & English)
+# K.N.U.L.L. — voice assistant for Windows (French & English)
 
-Apex (formerly Jarvis) is a fast, lightweight **bilingual (French / English)** voice assistant for Windows 10/11 with a futuristic HUD, built to run
+Knull (formerly Jarvis, then Apex) is a fast, lightweight **bilingual (French / English)** voice assistant for Windows 10/11 with a futuristic HUD, built to run
 smoothly on a modest laptop (tested on an HP ProBook 650 G4: i7-8550U, 8 GB RAM, Intel UHD 620).
 
-- **Wake word "Apex"** (or "Jarvis") detected offline (Vosk), sentence transcribed by **Groq Whisper large-v3**
+- **Wake word "Knull"** (also "Apex" or "Jarvis") detected offline (Vosk), sentence transcribed by **Groq Whisper large-v3**
   with automatic French/English detection; answers in the language you speak, with a deep multilingual voice
   (fr-FR-RemyMultilingualNeural). Offline fallback.
 - **Natural conversation**: answers stream as speech sentence by sentence, follow-up questions
-  without repeating the name, and you can **interrupt Apex while he talks** (barge-in).
+  without repeating the name, and you can **interrupt Knull while he talks** (barge-in).
 - **Several AI brains**: Claude, Groq, Gemini or OpenAI — switch by voice ("passe sur Groq").
 - **Controls the PC**: open/close apps and folders, web search, music and media keys, volume,
   brightness, screenshots, reminders and timers, lock / sleep / shutdown (with spoken confirmation).
@@ -29,15 +29,15 @@ smoothly on a modest laptop (tested on an HP ProBook 650 G4: i7-8550U, 8 GB RAM,
      `start.bat --setup-key groq` — key from https://console.groq.com/keys
    - or Claude: `start.bat --setup-key claude`, Gemini: `--setup-key gemini`, OpenAI: `--setup-key openai`.
 4. Double-click **`test.bat`** to check microphone, speaker, internet and keys.
-5. Double-click **`start.bat`** and say **"Apex, quelle heure est-il ?"** or **"Apex, what time is it?"**.
+5. Double-click **`start.bat`** and say **"Knull, quelle heure est-il ?"** or **"Knull, what time is it?"**.
 
-Keys are stored in `.env` (never committed). Stop Apex with `stop.bat` or the tray icon.
+Keys are stored in `.env` (never committed). Stop Knull with `stop.bat` or the tray icon.
 
 ### Démarrage rapide (FR)
 
-`install.bat` → `start.bat --setup-key groq` → `test.bat` → `start.bat`, puis dites « Apex, … » (en français ou en anglais).
-Cliquez sur le micro doré (ou appuyez sur Espace) pour parler sans dire « Apex ».
-Vous pouvez couper la parole à Apex quand il répond.
+`install.bat` → `start.bat --setup-key groq` → `test.bat` → `start.bat`, puis dites « Knull, … » (en français ou en anglais).
+Cliquez sur le micro doré (ou appuyez sur Espace) pour parler sans dire « Knull ».
+Vous pouvez couper la parole à Knull quand il répond.
 
 ## Contacts (messages)
 
@@ -49,32 +49,33 @@ To send WhatsApp messages or emails by name, add your contacts to `config.json`:
 }
 ```
 
-Without a phone number, Apex searches the name in WhatsApp and opens the first match. A message is
+Without a phone number, Knull searches the name in WhatsApp and opens the first match. A message is
 always read back to you and sent only after you say "oui" / "yes".
 
 ## Using it
 
 | Say / do | Effect |
 |---|---|
-| "Apex, ouvre WhatsApp" / "Apex, close the calculator" | open / close apps, folders, sites |
-| "Apex, envoie un message à Paul sur WhatsApp : j'arrive" / "send an email to paul@x.com…" | sends after a spoken "oui" / "yes" |
+| "Knull, ouvre WhatsApp" / "Knull, close the calculator" | open / close apps, folders, sites |
+| "Knull, envoie un message à Paul sur WhatsApp : j'arrive" / "send an email to paul@x.com…" | finds the contact on screen (tolerant to spelling), types the message, sends after "oui" / "yes", then checks it left |
+| "clique sur Envoyer", "regarde l'écran", "remplis le champ recherche avec…" | uses any app like a person (Windows UI Automation: sees buttons, fields, rows) |
 | "résume ce texte", "traduis ça en anglais", "corrige ce texte", "reformule", "explique ce code" | works on the selected text of any app |
 | "demande à Claude …", "ask ChatGPT …", "demande à Perplexity …" | opens the site with the question |
 | "clique", "double clic", "clic droit" | mouse clicks |
-| "Apex, écris un code Python qui affiche bonjour dans VS Code" | the AI opens VS Code, creates a file and types the code |
+| "Knull, écris un code Python qui affiche bonjour dans VS Code" | the AI opens VS Code, creates a file and types the code |
 | "écris bonjour à tous", "copie ça", "colle", "enregistre", "sélectionne tout" | typing and shortcuts in the active window |
 | "nouvel onglet", "ferme l'onglet", "actualise", "descends", "plein écran" | browser / page control |
 | "réduis la fenêtre", "mets la fenêtre à gauche", "affiche le bureau", "change de fenêtre" | window management |
 | "ouvre les paramètres du Wi-Fi", "passe en mode sombre" | Windows settings |
 | "utilisation du processeur", "espace libre sur le disque", "mon adresse IP" | system information |
 | "cherche le fichier rapport", "vide la corbeille" (asks first) | files |
-| "Apex, cherche la météo de Paris" | web search |
-| "Apex, mets le volume à 30 %", "coupe le son" | volume |
-| "Apex, joue du Daft Punk sur YouTube", "pause", "chanson suivante" | music |
-| "Apex, rappelle-moi dans 10 minutes de sortir le gâteau", "minuteur de 5 minutes" | reminders |
-| "Apex, passe sur Groq / Claude / Gemini / OpenAI" | change the AI |
-| "Apex, éteins l'ordinateur" | asks "oui / non" first, 15 s to cancel |
-| "Apex, que sais-tu faire ?" | help |
+| "Knull, cherche la météo de Paris" | web search |
+| "Knull, mets le volume à 30 %", "coupe le son" | volume |
+| "Knull, joue du Daft Punk sur YouTube", "pause", "chanson suivante" | music |
+| "Knull, rappelle-moi dans 10 minutes de sortir le gâteau", "minuteur de 5 minutes" | reminders |
+| "Knull, passe sur Groq / Claude / Gemini / OpenAI" | change the AI |
+| "Knull, éteins l'ordinateur" | asks "oui / non" first, 15 s to cancel |
+| "Knull, que sais-tu faire ?" | help |
 | Gold mic button or **Space** | talk without the wake word |
 | Talk while Jarvis answers | interrupts him |
 | SYS / WEB / MEDIA / REPEAT / SETTINGS | status + log + keyboard input / web search / play-pause / repeat last answer / AI + mic + display |

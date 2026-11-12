@@ -184,7 +184,7 @@ user32.GetClassNameW.argtypes = [wt.HWND, wt.LPWSTR, ctypes.c_int]
 user32.GetWindowTextW.argtypes = [wt.HWND, wt.LPWSTR, ctypes.c_int]
 user32.GetWindowThreadProcessId.argtypes = [wt.HWND, ctypes.POINTER(wt.DWORD)]
 
-HUD_TITLES = ("A.P.E.X.", "Apex", "J.A.R.V.I.S.", "Jarvis")
+HUD_TITLES = ("K.N.U.L.L.", "Knull", "A.P.E.X.", "Apex", "J.A.R.V.I.S.", "Jarvis")
 SHELL_CLASSES = {"ConsoleWindowClass", "CASCADIA_HOSTING_WINDOW_CLASS", "PseudoConsoleWindow", "mintty",
                  "VirtualConsoleClass", "PuTTY"}
 RUN_TITLES = {"exécuter", "executer", "run"}

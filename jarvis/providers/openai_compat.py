@@ -88,14 +88,47 @@ class OpenAICompatProvider:
         }
         if tools:
             kwargs["tools"] = self._tools(tools)
-        if self.cfg.get("reasoning_effort"):
+        if "qwen" in kwargs["model"]:
+            kwargs["reasoning_effort"] = "none"  # Qwen: no hidden "thinking" (fast, no stray text)
+        elif self.cfg.get("reasoning_effort"):
             kwargs["reasoning_effort"] = self.cfg["reasoning_effort"]  # fewer hidden tokens = faster, cheaper
         extra = self.cfg.get("extra_body")
         if isinstance(extra, dict) and extra:
             kwargs["extra_body"] = extra
         # No silent SDK wait on "429 too many requests": the fallback model answers right away instead.
-        client = self.client.with_options(max_retries=0) if self.cfg.get("fallback_model") else self.client
+        client = self.client.with_options(max_retries=0) if self._fallbacks() else self.client
         return client.chat.completions.create(**kwargs)
+
+    def _fallbacks(self) -> list[str]:
+        models = self.cfg.get("fallback_models") or ([self.cfg["fallback_model"]] if self.cfg.get("fallback_model") else [])
+        return [m for m in models if m and m != self.model]
+
+    def _create_any(self, system: str, messages: list[dict], tools: list[dict] | None):
+        """Free plans limit tokens per minute *per model*: when one model is busy, the next answers
+        at once. If all are busy, wait only when the service asks for a few seconds."""
+        import re
+        import time
+
+        import openai
+
+        models = [self.model] + self._fallbacks()
+        waits: list[tuple[float, str]] = []
+        last: Exception | None = None
+        for model in models:
+            try:
+                if model != self.model:
+                    log.warning("%s rate limit, using %s for this answer", self.label, model)
+                return self._create(system, messages, tools, model=model)
+            except openai.RateLimitError as exc:
+                last = exc
+                m = re.search(r"try again in ([\d.]+)s", str(exc))
+                waits.append((float(m.group(1)) if m else 99.0, model))
+        wait, model = min(waits) if waits else (99.0, self.model)
+        if wait > 8 or last is None:
+            raise last if last else RuntimeError("no model")
+        log.warning("%s: every model is rate-limited, waiting %.1fs", self.label, wait)
+        time.sleep(wait + 0.3)
+        return self._create(system, messages, tools, model=model)
 
     def stream(self, system: str, messages: list[dict], tools: list[dict] | None = None) -> Iterator[str]:
         import openai
@@ -105,28 +138,7 @@ class OpenAICompatProvider:
         calls: dict[int, dict] = {}
         try:
             try:
-                try:
-                    response = self._create(system, messages, tools)
-                except openai.RateLimitError:
-                    # Free plans limit tokens per minute *per model*: another model answers at once.
-                    fallback = self.cfg.get("fallback_model")
-                    if not fallback or fallback == self.model:
-                        raise
-                    log.warning("%s rate limit on %s, using %s for this answer", self.label, self.model, fallback)
-                    try:
-                        response = self._create(system, messages, tools, model=fallback)
-                    except openai.RateLimitError as exc:
-                        # Both models busy: wait if the service asks for only a few seconds.
-                        import re
-                        import time
-
-                        m = re.search(r"try again in ([\d.]+)s", str(exc))
-                        wait = float(m.group(1)) if m else 99.0
-                        if wait > 8:
-                            raise
-                        log.warning("%s: both models rate-limited, waiting %.1fs", self.label, wait)
-                        time.sleep(wait + 0.3)
-                        response = self._create(system, messages, tools, model=fallback)
+                response = self._create_any(system, messages, tools)
             except openai.BadRequestError as exc:
                 # Some newer OpenAI models only accept max_completion_tokens.
                 if "max_completion_tokens" in str(exc) and self._token_param == "max_tokens":

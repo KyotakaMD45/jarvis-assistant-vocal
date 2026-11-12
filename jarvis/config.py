@@ -10,7 +10,7 @@ from jarvis.paths import CONFIG_PATH
 
 
 DEFAULTS: dict[str, Any] = {
-    "assistant_name": "Apex",
+    "assistant_name": "Knull",
     "language": "fr-FR",
     "log_level": "INFO",
     "ai": {
@@ -21,14 +21,15 @@ DEFAULTS: dict[str, Any] = {
         "history_turns": 10,
         "use_tools": True,
         "system_prompt": (
-            "Tu es Apex, un assistant vocal calme, précis et efficace. "
+            "Tu es Knull, un assistant vocal calme, précis et efficace. "
             "Réponds toujours en français, en une à trois phrases courtes, "
             "sans listes ni mise en forme Markdown, car ta réponse sera lue à voix haute. "
             "Ne donne plus de détails que si l'utilisateur le demande."
         ),
         "claude": {"model": "claude-opus-5-5", "effort": "low", "refusal_fallback": True},
         "groq": {"model": "openai/gpt-oss-120b", "base_url": "https://api.groq.com/openai/v1",
-                 "reasoning_effort": "low", "fallback_model": "openai/gpt-oss-20b"},
+                 "reasoning_effort": "low",
+                 "fallback_models": ["openai/gpt-oss-20b", "qwen/qwen3.8-27b"]},
         "gemini": {"model": "gemini-2.5-flash", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
         "openai": {"model": "gpt-4.1-mini", "base_url": "https://api.openai.com/v1"},
     },
@@ -45,7 +46,7 @@ DEFAULTS: dict[str, Any] = {
         "test_sentence": "Bonjour monsieur. Tous les systèmes sont opérationnels. Je suis prêt.",
     },
     "listening": {
-        "wake_words": ["apex", "jarvis"],
+        "wake_words": ["knull", "apex", "jarvis"],
         "wake_alternatives": [],
         "model_path": "models/vosk-model-small-fr-0.22",
         "input_device": None,

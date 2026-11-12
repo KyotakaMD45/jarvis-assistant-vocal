@@ -40,6 +40,7 @@ class CommandContext:
     reminders: Any = None                           # ReminderService
     notify: Callable[[str, str], None] = lambda title, text: None  # tray notification
     from_ai: bool = False                           # True when the AI called the command as a tool
+    note: Callable[[str], None] = lambda text: None  # information for the AI's next step (not spoken)
 
 
 @dataclass

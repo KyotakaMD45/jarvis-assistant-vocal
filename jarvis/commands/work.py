@@ -1,7 +1,7 @@
 """Work helpers: send messages (WhatsApp, email), ask Claude/ChatGPT/Perplexity, and work on the
 selected text of any application (summarize, translate, fix, rewrite, explain, read aloud).
 
-Sending a message always asks for a spoken "oui" first and repeats the recipient and the text.
+A message is typed in the app first, sent only after a spoken "oui", and the sending is checked.
 Known contacts (phone numbers, email addresses) go in config.json, section "contacts":
     "contacts": {"paul": {"whatsapp": "+33612345678", "email": "paul@example.com"}}
 """
@@ -40,14 +40,6 @@ def _email_address(ctx: CommandContext, contact: str) -> str:
     return _contact(ctx, contact).get("email", "")
 
 
-def _confirm_message(args: dict) -> str | None:
-    app = (args.get("app") or "whatsapp").lower()
-    text, contact = (args.get("text") or "").strip(), (args.get("contact") or "").strip()
-    if app == "email":
-        return f"J'envoie un mail à {contact} : « {text} ». D'accord ? Réponds oui ou non."
-    return f"J'envoie à {contact} sur WhatsApp : « {text} ». Je l'envoie ? Réponds oui ou non."
-
-
 def send_message(ctx: CommandContext, args: dict) -> str:
     app = (args.get("app") or "whatsapp").lower()
     contact, text = (args.get("contact") or "").strip(), (args.get("text") or "").strip()
@@ -58,33 +50,103 @@ def send_message(ctx: CommandContext, args: dict) -> str:
     return _send_whatsapp(ctx, contact, text)
 
 
-def _send_whatsapp(ctx: CommandContext, contact: str, text: str) -> str:
-    phone = re.sub(r"[^\d+]", "", str(_contact(ctx, contact).get("whatsapp") or _contact(ctx, contact).get("phone") or ""))
-    pcctl.mark_app_opened()
+_SEARCH = re.compile(r"recherch|search", re.IGNORECASE)
+_COMPOSER_PREFIX = re.compile(r"^\s*(?:[ée]crivez|entrez|tapez|saisissez|type)\s+(?:un |a )?message\s*(?:[àa]|to)?\s*", re.IGNORECASE)
+
+
+def _search_box(items):
+    return next(((c, ct, n) for c, ct, n in items if ct == "EditControl" and _SEARCH.search(n)), None)
+
+
+def _composer(items):
+    return next(((c, ct, n) for c, ct, n in items if ct == "EditControl" and not _SEARCH.search(n)), None)
+
+
+def _chat_name(composer) -> str:
+    """'Écrivez un message à Benimaru💁❤️' -> 'Benimaru' (the open conversation)."""
+    from jarvis.uictl import fold
+
+    name = _COMPOSER_PREFIX.sub("", composer[2] if composer else "")
+    clean = re.sub(r"[^\w\s'’.-]", "", name, flags=re.UNICODE).strip()
+    return clean or fold(name)
+
+
+def _whatsapp_window(timeout: float = 12.0):
+    from jarvis import uictl
+
+    hwnd = uictl.find_window(process="WhatsApp.Root.exe") or uictl.find_window(process="WhatsApp.exe")
+    if hwnd:
+        return hwnd
     try:
-        if phone:  # direct link: opens the right chat with the message ready
-            os.startfile(f"whatsapp://send?phone={phone.lstrip('+')}&text={quote(text)}")  # noqa: S606
-        else:
-            os.startfile("whatsapp:")  # noqa: S606
+        os.startfile("whatsapp:")  # noqa: S606
     except OSError:
-        return "WhatsApp n'est pas installé sur ce PC."
-    hwnd = pcctl.wait_for_target(9.0)
-    if not hwnd or "whatsapp" not in pcctl.window_info(hwnd)[1].lower():
-        return "WhatsApp ne s'est pas ouvert au premier plan, je n'envoie rien."
-    if phone:
-        time.sleep(1.5)            # the chat loads with the text already typed
-    else:
-        pcctl.send_combo("ctrl+f")  # search the chat by name, open the first result
-        time.sleep(0.5)
-        pcctl.paste_text(contact)
-        time.sleep(1.6)
-        pcctl.send_combo("enter")
-        time.sleep(1.2)
-        pcctl.paste_text(text)
+        return None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
         time.sleep(0.4)
+        hwnd = uictl.find_window(process="WhatsApp.Root.exe") or uictl.find_window(process="WhatsApp.exe")
+        if hwnd:
+            return hwnd
+    return None
+
+
+def _send_whatsapp(ctx: CommandContext, contact: str, text: str) -> str:
+    """Open the right chat (fuzzy name match on screen), type the message, confirm, send, verify."""
+    from jarvis import uictl
+
+    book = _contact(ctx, contact)
+    wanted = book.get("name") or contact
+    hwnd = _whatsapp_window()
+    if not hwnd:
+        return "WhatsApp n'est pas installé ou ne s'ouvre pas."
+    pcctl.user32.ShowWindow(hwnd, pcctl.SW_RESTORE) if pcctl.user32.IsIconic(hwnd) else None
+    uictl.bring_front(hwnd)
+    items = uictl.wait_for(hwnd, lambda it: it if _search_box(it) else None, timeout=8.0)
+    if not items:
+        return "Je n'arrive pas à lire WhatsApp. Il est peut-être en train de se connecter."
+    composer = _composer(items)
+    if not (composer and uictl.name_score(wanted, _chat_name(composer)) >= 0.75):
+        # Search the contact, then pick the closest name among the results.
+        uictl.type_into(_search_box(items)[0], wanted)
+        time.sleep(1.2)
+        rows = [(c, ct, n) for c, ct, n in uictl.elements(hwnd) if ct in ("DataItemControl", "ListItemControl") and n]
+        hit = uictl.best_match(rows, wanted, minimum=0.6)
+        if not hit:
+            others = []
+            for _c, _ct, n in rows[:6]:
+                first = " ".join(re.sub(r"[^\w\s'’-]", " ", n).split()[:2])
+                if first and first not in others:
+                    others.append(first)
+            pcctl.send_combo("esc")
+            return f"Je ne trouve pas {contact} dans WhatsApp." + (f" Les plus proches : {', '.join(others[:3])}." if others else "")
+        uictl.click(hit[0])
+        items = uictl.wait_for(hwnd, lambda it: it if _composer(it) else None, timeout=5.0) or []
+        composer = _composer(items)
+        if not composer or uictl.name_score(wanted, _chat_name(composer)) < 0.6:
+            return f"Je n'ai pas réussi à ouvrir la discussion avec {contact}, je n'envoie rien."
+    shown = _chat_name(composer) or contact
+    if not uictl.type_into(composer[0], text):
+        return "Je n'arrive pas à écrire dans WhatsApp."
+    if not ctx.ask_yes_no(f"J'envoie à {shown} : « {text} » ?"):
+        uictl.bring_front(hwnd)
+        uictl.type_into(composer[0], " ")
+        pcctl.send_combo("backspace")
+        return "D'accord, je n'envoie pas. Le message est effacé."
+    uictl.bring_front(hwnd)
+    try:
+        composer[0].SetFocus()
+    except Exception:  # noqa: BLE001
+        pass
     pcctl.send_combo("enter")
-    log.info("WhatsApp message sent to %r", contact)
-    return f"Message envoyé à {contact}."
+    # Check: the field empties once the message is sent.
+    for _ in range(8):
+        time.sleep(0.35)
+        now = _composer(uictl.elements(hwnd, kinds={"EditControl"}))
+        if now and not uictl.value_of(now[0]).strip():
+            log.info("WhatsApp message sent and verified (%s)", shown)
+            return f"C'est envoyé à {shown}."
+    log.warning("WhatsApp send could not be verified (%s)", shown)
+    return f"J'ai appuyé sur envoyer, mais je n'arrive pas à le vérifier. Jette un œil à WhatsApp."
 
 
 def _send_email(ctx: CommandContext, contact: str, text: str, subject: str) -> str:
@@ -100,7 +162,10 @@ def _send_email(ctx: CommandContext, contact: str, text: str, subject: str) -> s
     hwnd = pcctl.wait_for_target(9.0)
     if not hwnd:
         return "Le brouillon est ouvert, mais je n'ai pas pu l'envoyer : vérifie-le et envoie-le."
-    time.sleep(1.0)
+    if not ctx.ask_yes_no(f"Le mail pour {address} est prêt. Je l'envoie ?"):
+        return "D'accord, le brouillon reste ouvert."
+    pcctl.focus(hwnd)
+    time.sleep(0.3)
     pcctl.send_combo("ctrl+enter")  # "send" in Outlook, Mail and Gmail
     return f"Mail envoyé à {contact}. Vérifie qu'il est bien parti."
 
@@ -188,15 +253,13 @@ _SEL = r"(?:\s+(?:ce texte|ce paragraphe|ce mail|cet email|ce code|ca|cela|la se
 COMMANDS = [
     Command(
         name="send_message",
-        description="Send a message for the user: app 'whatsapp' (default) or 'email'. Write the final message text "
-                    "(in the user's words, polished if asked). The user is always asked to confirm before sending.",
+        description="Send a WhatsApp message (default) or an email for the user. The user confirms before sending.",
         run=send_message,
-        confirm=_confirm_message,
         parameters={
             "app": {"type": "string", "enum": ["whatsapp", "email"]},
-            "contact": {"type": "string", "description": "Contact name (or email address)"},
-            "text": {"type": "string", "description": "The exact message to send"},
-            "subject": {"type": "string", "description": "Email subject (email only)"},
+            "contact": {"type": "string"},
+            "text": {"type": "string"},
+            "subject": {"type": "string"},
         },
         required=["contact", "text"],
         priority=60,
@@ -216,9 +279,7 @@ COMMANDS = [
     ),
     Command(
         name="selected_text",
-        description="Work on the text the user has selected in any application: summarize, explain, read (aloud), fix "
-                    "(spelling), rewrite, translate (with language), or custom (with instruction and output 'replace' or "
-                    "'speak'). 'fix', 'rewrite', 'translate' replace the selection.",
+        description="Work on the text selected in any app (fix/rewrite/translate replace it; custom = instruction).",
         run=selection,
         patterns=[
             (r"^(?:resume|resumer|resumes|summarize|summarise)" + _SEL + r"$", {"task": "summarize"}),
@@ -231,8 +292,8 @@ COMMANDS = [
         ],
         parameters={
             "task": {"type": "string", "enum": ["summarize", "explain", "read", "fix", "rewrite", "translate", "custom"]},
-            "language": {"type": "string", "description": "Target language for translate"},
-            "instruction": {"type": "string", "description": "What to do, for custom"},
+            "language": {"type": "string"},
+            "instruction": {"type": "string"},
             "output": {"type": "string", "enum": ["replace", "speak"]},
         },
         required=["task"],

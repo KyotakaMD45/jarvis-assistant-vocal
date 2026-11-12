@@ -28,7 +28,7 @@ log = get_logger(__name__)
 
 # What Jarvis *says* (French); the console/HUD shows the detailed English message.
 SPOKEN = {
-    "online": "Apex en ligne.",
+    "online": "Knull en ligne.",
     "no_mic": "Je n'ai pas accès au micro. Vous pouvez taper vos commandes.",
     "mic_lost": "J'ai perdu le micro. J'essaie de le reconnecter.",
     "auth": "La clé d'accès de l'intelligence artificielle n'est pas valide. Lancez le test pour plus de détails.",
@@ -47,7 +47,7 @@ _ERROR_TO_SPOKEN = {
     "connection": "connection", "timeout": "timeout", "rate_limit": "limit", "billing": "limit",
     "server": "server", "refusal": "refusal", "not_found": "not_found", "bad_tool": "bad_tool",
 }
-BARGE_WORDS = {"stop", "arrete", "attends", "attend", "tais", "pause", "silence", "non", "jarvis", "apex", "wait", "no"}
+BARGE_WORDS = {"stop", "arrete", "attends", "attend", "tais", "pause", "silence", "non", "jarvis", "apex", "knull", "null", "wait", "no"}
 YES = {"oui", "ouais", "oui oui", "oui vas y", "oui vas-y", "vas y", "vas-y", "confirme", "je confirme", "d'accord",
        "d accord", "ok", "okay", "exactement", "bien sur", "affirmatif", "oui s'il te plait", "oui merci", "c'est ca",
        "yes", "yeah", "yep", "sure", "do it", "go ahead", "confirm", "of course", "yes please", "absolutely", "correct"}
@@ -117,6 +117,7 @@ class VoiceAssistant:
         self._pending_command: str | None = None   # what the user said while interrupting Jarvis
         self._last_answer = ""                     # for the REPEAT button
         self._alternative: str | None = None       # offline transcript of the current sentence
+        self._notes: list[str] = []                # what the last actions saw (for the AI's next step)
         self.barge_in = cfg["listening"]["barge_in"]
         self._ids = itertools.count(1)
 
@@ -293,7 +294,7 @@ class VoiceAssistant:
     def _context(self, from_ai: bool = False) -> commands.CommandContext:
         return commands.CommandContext(cfg=self.cfg, say=self.say, ask_yes_no=self.ask_yes_no, assistant=self,
                                        brain=self.brain, reminders=self.reminders, notify=self.notify,
-                                       from_ai=from_ai)
+                                       from_ai=from_ai, note=self._notes.append)
 
     # Commands that open a window: the HUD steps aside, otherwise Windows (which does not let a
     # background program take the foreground) leaves the new window hidden behind it.
@@ -367,6 +368,11 @@ class VoiceAssistant:
     def _needs_tools(self, text: str) -> bool:
         return bool(self.ACTION_HINTS.search(simple(text)))
 
+    # Tools that look at / act on the screen: after them the AI always gets a next step (agent loop).
+    PERCEPTION = {"screen_look", "click_element", "fill_field"}
+    AGENT_TOOLS = PERCEPTION | {"keyboard_shortcut", "type_text", "open_app", "close_app", "window_control",
+                                "send_message", "selected_text", "open_website", "web_search", "play_music"}
+
     def _run_tool_calls(self, calls) -> list[tuple[str, dict, str | None]]:
         done = []
         for call in calls:
@@ -386,19 +392,28 @@ class VoiceAssistant:
         return done
 
     def _continue_steps(self, text: str, done: list) -> None:
-        if not done or not self.MULTI_STEP.search(text):
+        looking = any(n in self.PERCEPTION for n, _a, _r in done)
+        if not done or not (self.MULTI_STEP.search(text) or looking):
             return
         history = list(self.brain.history)
         seen = {(n, repr(a)) for n, a, _ in done}
         try:
-            for _ in range(self.MAX_STEPS - 1):
+            for _ in range((6 if looking else self.MAX_STEPS) - 1):
                 summary = "; ".join(f"{n} {a} -> {r or 'fait'}" for n, a, r in done)
+                seen_now = " | ".join(self._notes)[-2500:]
+                self._notes.clear()
                 prompt = (f"(Suite automatique, l'utilisateur n'a rien dit de plus.) Sa demande : « {text} ». "
-                          f"Actions déjà faites : {summary}. S'il reste une étape à faire pour cette demande, appelle "
-                          "l'outil suivant sans écrire de texte (ne refais jamais une action déjà faite). "
-                          "Si tout est fait, réponds uniquement : OK")
-                answer = "".join(self.brain.ask(prompt, tools=commands.tool_specs())).strip()
+                          f"Actions déjà faites : {summary}. "
+                          + (f"Ce que tu vois maintenant : {seen_now}. " if seen_now else "")
+                          + "S'il reste une étape à faire pour cette demande, appelle l'outil suivant sans écrire de "
+                          "texte (ne refais jamais une action déjà faite). Si tout est fait, réponds uniquement : OK. "
+                          "Si on te demande ce qu'il y a à l'écran, réponds-le en une ou deux phrases.")
+                specs = commands.tool_specs()
+                if looking:
+                    specs = [t for t in specs if t["name"] in self.AGENT_TOOLS]
+                answer = "".join(self.brain.ask(prompt, tools=specs)).strip()
                 typed = any(n == "type_text" for n, _a, _r in done)
+                looking = looking or any(c.name in self.PERCEPTION for c in self.brain.last_tool_calls)
                 calls = [c for c in self.brain.last_tool_calls if (c.name, repr(c.args)) not in seen
                          and not (typed and c.name == "keyboard_shortcut" and c.args.get("action") == "new")]
                 if not calls:
@@ -503,6 +518,7 @@ class VoiceAssistant:
             if delay:
                 log.info("Voice answer: first audio %.2fs after the command was recognized", delay)
             calls = list(self.brain.last_tool_calls) + (self._parse_action_text("".join(hidden)) if hidden else [])
+            self._notes.clear()
             done = self._run_tool_calls(calls)
             results = [r for _n, _a, r in done if r]
             if results and self.brain.history and self.brain.history[-1]["role"] == "assistant":
@@ -535,9 +551,9 @@ class VoiceAssistant:
     def handle(self, text: str) -> str:
         """Run one sentence. Returns "follow_up" (keep listening briefly) or "idle"."""
         found = commands.match(text)
-        if found is None and self._alternative and len(text.split()) <= 3:
-            # Whisper sometimes garbles a very short command ("copie ça" -> "PISA") that the offline
-            # model heard correctly: if only the offline version is a known command, use it.
+        if found is None and self._alternative and len(self._alternative.split()) <= 8:
+            # Whisper sometimes garbles a command ("ferme la fenêtre WhatsApp" -> "film raffiné") that
+            # the offline model heard correctly: if only the offline version is a known command, use it.
             found = commands.match(self._alternative)
             if found is not None:
                 log.info("Using the offline transcript %r instead of %r", self._alternative, text)
