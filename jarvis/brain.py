@@ -20,6 +20,13 @@ log = get_logger(__name__)
 
 __all__ = ["Brain", "BrainError", "ToolCall"]
 
+SPEECH_PROMPT = (
+    "\n\nLes messages de l'utilisateur viennent d'une reconnaissance vocale qui peut se tromper "
+    "(mots mal entendus, noms déformés comme « Chad JPT » pour ChatGPT). Comprends l'intention la plus "
+    "probable. Si une « autre transcription » est fournie, choisis la version la plus plausible. "
+    "Si la demande reste vraiment ambiguë, pose une seule question courte au lieu de deviner."
+)
+
 TOOLS_PROMPT = (
     "\n\nTu contrôles l'ordinateur Windows de l'utilisateur grâce aux outils fournis. "
     "Si la demande correspond à un outil, appelle-le directement sans écrire de texte : "
@@ -115,7 +122,7 @@ class Brain:
     # -- conversation --------------------------------------------------------------------
     def _system_prompt(self, with_tools: bool) -> str:
         now = datetime.now()
-        prompt = self.ai["system_prompt"] + f"\n\nDate et heure locales : {now:%A %d %B %Y, %H:%M}."
+        prompt = self.ai["system_prompt"] + SPEECH_PROMPT + f"\n\nDate et heure locales : {now:%A %d %B %Y, %H:%M}."
         return prompt + (TOOLS_PROMPT if with_tools else "")
 
     def ask(self, user_text: str, tools: list[dict] | None = None) -> Iterator[str]:

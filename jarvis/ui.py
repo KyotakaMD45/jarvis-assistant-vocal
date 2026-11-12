@@ -40,6 +40,9 @@ class Ui:
     def status(self, **fields: str) -> None:
         self._send("status", fields)
 
+    def look(self, direction: str) -> None:
+        self._send("look", {"direction": direction})
+
     def boot(self, text: str, ok: bool = True) -> None:
         self._send("boot", {"text": text, "ok": ok})
 

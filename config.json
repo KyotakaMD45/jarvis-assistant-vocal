@@ -59,7 +59,8 @@
     "maximized": true,
     "width": 1280,
     "height": 760,
-    "sounds": true
+    "sounds": true,
+    "style": "avatar"
   },
   "commands": {
     "music_folder": ""

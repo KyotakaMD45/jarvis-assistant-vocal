@@ -20,6 +20,7 @@
     smooth: 0,       // smoothed level
     fps: 30,
     lowPower: false,
+    style: "avatar",
     H: innerHeight,
     W: innerWidth,
   };
@@ -541,7 +542,7 @@
     app.smooth += (lv - app.smooth) * (lv > app.smooth ? Math.min(1, dt * 16) : Math.min(1, dt * 5));
 
     drawWaves(clock);
-    drawOrb(clock, dt);
+    if (app.style === "avatar") avatar.draw(clock, dt, app.smooth); else drawOrb(clock, dt);
     drawBars(clock);
 
     const cost = performance.now() - t0;
@@ -565,15 +566,24 @@
     app.fps = on ? 20 : Math.max(app.fps, 30);
     $("btn-lowpower").textContent = `LOW POWER: ${on ? "ON" : "OFF"}`;
     $("btn-lowpower").classList.toggle("on", on);
-    setupOrb();
+    if (app.style === "avatar") avatar.resize(app.H, on); else setupOrb();
+  }
+
+  const avatar = window.JarvisAvatar ? new window.JarvisAvatar($("avatar")) : null;
+
+  function applyStyle() {
+    if (!avatar) app.style = "orb";
+    document.body.classList.toggle("style-avatar", app.style === "avatar");
+    document.body.classList.toggle("style-orb", app.style !== "avatar");
   }
 
   function layout() {
     app.H = innerHeight;
     app.W = innerWidth;
+    applyStyle();
     drawSpace();
     setupWaves();
-    setupOrb();
+    if (app.style === "avatar") avatar.resize(app.H, app.lowPower); else setupOrb();
     setupBars();
   }
   let resizeTimer = 0;
@@ -587,6 +597,7 @@
 
   function setState(state) {
     app.state = state in TARGETS ? state : "idle";
+    if (avatar) avatar.state = app.state;
     $("mic").classList.toggle("active", app.state === "listening");
     clearTimeout(labelTimer);
     label.classList.remove("caption");
@@ -736,8 +747,10 @@
     switch (msg.type) {
       case "config":
         app.fps = Math.max(10, Math.min(60, msg.fps || 30));
+        if (msg.style && msg.style !== app.style) { app.style = msg.style; layout(); }
         if (msg.low_power) setLowPower(true);
         break;
+      case "look": if (avatar) avatar.look(msg.direction); break;
       case "boot": addLog("system", (msg.ok === false ? "[FAIL] " : "[ OK ] ") + msg.text); break;
       case "ready": finishBoot(); break;
       case "state": setState(msg.state); if (msg.state === "error") document.body.classList.add("ready"); break;
@@ -746,13 +759,27 @@
       case "log":
         addLog(msg.role, msg.text, msg.id);
         if (msg.role === "user" && msg.text) showCaption(`« ${msg.text} »`);
+        if (msg.role !== "system") setTicker(msg.role, msg.text || "", msg.id);
         break;
-      case "log_append": appendLog(msg.id, msg.text); break;
+      case "log_append": appendLog(msg.id, msg.text); if (ticker.id === msg.id) setTicker("jarvis", ticker.text + msg.text, msg.id); break;
       case "stats": onStats(msg); break;
       case "status": onStatus(msg); break;
       default: break;
     }
   }
+  // Bottom-left ticker: the last line of the conversation.
+  const ticker = { id: null, text: "" };
+  function setTicker(role, text, id) {
+    ticker.id = id || null;
+    ticker.text = text;
+    const el = $("ticker");
+    el.innerHTML = "";
+    if (!text) return;
+    const who = document.createElement("b");
+    who.textContent = role === "user" ? "YOU" : "JARVIS";
+    el.append(who, document.createTextNode(text));
+  }
+
   window.__hudHandle = handle; // debugging/tests
 
   function connect() {

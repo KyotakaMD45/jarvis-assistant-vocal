@@ -50,6 +50,11 @@ for names, display, target in [
     (["vlc"], "VLC", "@vlc media player|vlc.exe"),
     (["teams", "microsoft teams"], "Teams", "@microsoft teams|@teams|msteams:"),
     (["capture", "outil capture", "outil de capture"], "l'outil Capture", "ms-screenclip:"),
+    (["chatgpt", "chat gpt", "chat jpt", "chad jpt", "chadjpt", "chat j p t", "chat g p t", "tchat gpt", "chatte gpt",
+      "chat de pt", "chatdepter", "chat depter", "chat gepete", "chat gpt app", "gpt", "lgbt", "chat gbt", "chatgbt"],
+     "ChatGPT", "@chatgpt|https://chatgpt.com"),
+    (["claude", "claude ai", "application claude"], "Claude", "@claude|https://claude.ai"),
+    (["copilot", "co pilot", "microsoft copilot"], "Copilot", "@copilot|ms-copilot:"),
 ]:
     for name in names:
         ALIASES[name] = (display, target)
@@ -111,7 +116,8 @@ class AppIndex:
         contains = [k for k in apps if f" {key}" in f" {k}"]
         if contains:
             return apps[min(contains, key=len)]
-        close = difflib.get_close_matches(key, list(apps), n=1, cutoff=0.8)
+        # Fuzzy: "chadjpt" ~ "chatgpt"; looser for longer names (fewer accidental matches).
+        close = difflib.get_close_matches(key, list(apps), n=1, cutoff=0.72 if len(key) >= 6 else 0.82)
         return apps[close[0]] if close else None
 
     def find(self, spoken: str) -> tuple[str, str] | None:
@@ -122,6 +128,8 @@ class AppIndex:
         if key in ALIASES:
             display, targets = ALIASES[key]
             for target in targets.split("|"):
+                if target.startswith("http"):
+                    return display, target
                 if target.startswith("@"):
                     self.wait()
                     found = self._lookup_index(target[1:])

@@ -67,7 +67,7 @@ def help_text(ctx: CommandContext, args: dict) -> str:
 
 COMMANDS = [
     Command(name="quit_jarvis", description="Quit Jarvis completely.", run=quit_jarvis, ai_tool=False, priority=100,
-            patterns=[r"^(?:au revoir|arrete[ -]toi|eteins[ -]toi|eteint[ -]toi|quitte|quit|exit|bonne nuit(?: jarvis)?|desactive[ -]toi)$"]),
+            patterns=[r"^(?:(?:je (?:te )?dis |bon )?au revoir|arrete[ -]toi|eteins[ -]toi|eteint[ -]toi|quitte|quit|exit|bonne nuit|desactive[ -]toi|bye(?: bye)?|a plus tard|a la prochaine)(?: jarvis)?$"]),
     Command(name="restart_jarvis", description="Restart Jarvis.", run=restart_jarvis, ai_tool=False, priority=100,
             patterns=[r"^(?:redemarre[ -]toi|redemarrez[ -]vous|relance[ -]toi|redemarre jarvis|relance jarvis|reboot)$"]),
     Command(name="cancel", description="Cancel / never mind.", run=cancel, ai_tool=False, priority=100,

@@ -96,6 +96,7 @@ class VoiceAssistant:
         self._push_to_talk = threading.Event()     # mic button / Space in the HUD
         self._pending_command: str | None = None   # what the user said while interrupting Jarvis
         self._last_answer = ""                     # for the REPEAT button
+        self._alternative: str | None = None       # offline transcript of the current sentence
         self.barge_in = cfg["listening"]["barge_in"]
         self._ids = itertools.count(1)
 
@@ -137,6 +138,9 @@ class VoiceAssistant:
             self.set_listening(True)
         self.speaker.stop()  # also interrupts Jarvis if he is talking
         self._push_to_talk.set()
+
+    def avatar_look(self, direction: str) -> None:
+        self.ui.look(direction)
 
     def repeat_last(self) -> None:
         self._announcements.put(self._last_answer or "Je n'ai encore rien dit.")
@@ -287,7 +291,7 @@ class VoiceAssistant:
         if command.name == "switch_ai":
             self.ui.status(model=self._ai_status())
 
-    def ask_ai(self, text: str) -> bool:
+    def ask_ai(self, text: str, alternative: str | None = None) -> bool:
         """Stream the AI's answer to the speaker and the HUD; run the commands it asks for."""
         entry = f"j{next(self._ids)}"
         print(f"{self.cfg['assistant_name']} > ", end="", flush=True)
@@ -340,7 +344,8 @@ class VoiceAssistant:
 
         try:
             try:
-                self.speaker.speak_stream(self.brain.ask(text, tools=tools), on_text=on_text)
+                prompt = text if not alternative else f"{text}\n(autre transcription possible : « {alternative} »)"
+                self.speaker.speak_stream(self.brain.ask(prompt, tools=tools), on_text=on_text)
             finally:
                 monitor_stop.set()
                 if monitor is not None:
@@ -401,10 +406,10 @@ class VoiceAssistant:
                 self._run_command(found.command, found.args)
             except commands.Unsure:
                 log.info("Local command %s unsure, asking the AI: %r", found.command.name, text)
-                return "follow_up" if self.ask_ai(text) else "idle"
+                return "follow_up" if self.ask_ai(text, self._alternative) else "idle"
             # A conversation-like command (time, battery...) may get a follow-up question.
             return "follow_up" if found.command.name not in ("cancel", "quit_jarvis", "restart_jarvis") else "idle"
-        return "follow_up" if self.ask_ai(text) else "idle"
+        return "follow_up" if self.ask_ai(text, self._alternative) else "idle"
 
     # -- startup -------------------------------------------------------------------------
     def _boot(self) -> None:
@@ -475,6 +480,14 @@ class VoiceAssistant:
     # -- main loop -----------------------------------------------------------------------
     def _next_input(self, follow_up: bool) -> tuple[str, str] | None:
         """Wait for the next announcement, typed or spoken command: (kind, text)."""
+        self._alternative = None
+        self.listener.last_alternative = None
+        item = self._next_input_raw(follow_up)
+        if item is not None and item[0] == "command":
+            self._alternative = self.listener.last_alternative
+        return item
+
+    def _next_input_raw(self, follow_up: bool) -> tuple[str, str] | None:
         if self._pending_command:
             text, self._pending_command = self._pending_command, None
             return "command", text

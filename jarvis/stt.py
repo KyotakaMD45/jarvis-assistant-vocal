@@ -92,6 +92,7 @@ class Listener:
         self._rec = None
         self.level = 0.0          # current microphone level (0..1), for the HUD later
         self.transcriber = None   # optional cloud speech-to-text (cloud_stt.GroqWhisper)
+        self.last_alternative: str | None = None  # offline transcript of the last sentence
         self.status_error = ""
 
     # -- microphone ----------------------------------------------------------------------
@@ -192,6 +193,8 @@ class Listener:
     def _split_wake(self, text: str) -> tuple[bool, str]:
         """Return (wake word found, words after the last wake word)."""
         words = text.split()
+        if len(words) >= 2 and words[-1] in self.wake_words and words[0] not in self.wake_words:
+            return True, " ".join(words[:-1])  # "au revoir jarvis" -> "au revoir"
         for index in range(len(words) - 1, -1, -1):
             if words[index] in self.wake_words:
                 return True, " ".join(words[index + 1:])
@@ -237,6 +240,9 @@ class Listener:
     def _split_wake_text(text: str) -> tuple[bool, str]:
         """Find "Jarvis" near the start of a Whisper transcript; return (found, the rest)."""
         m = re.search(r"\b(?:jarvis|jarvi|javis|jarviss?e)\b[\s,.!?:;-]*", text, flags=re.IGNORECASE)
+        if m and not text[m.end():].strip(" ,.!?;:-") and text[:m.start()].strip(" ,.!?;:-"):
+            # Name at the end: "Au revoir Jarvis." / "Ouvre WhatsApp, Jarvis."
+            return True, text[:m.start()].strip(" ,.!?;:-")
         if m and len(text[:m.start()].split()) <= 3:
             return True, text[m.end():].strip(" ,.!?;:-")
         # Whisper puts a comma after the name it was called by, even when it misspells it:
@@ -359,6 +365,8 @@ class Listener:
                             continue  # silence or noise
                         if on_wake and not woke:
                             on_wake(True)
+                        alt = vosk_after if vosk_wake else text
+                        self.last_alternative = alt if alt and alt != after.lower() else None
                         return after
                 # Offline text (no cloud transcriber, or it failed).
                 if vosk_wake and not vosk_after:
