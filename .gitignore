@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+jarvis.log*
+models/
+.hud-profile/
+state.json
+reminders.json
+reminders.tmp
+.jarvis.instance
+backup_before_ui/

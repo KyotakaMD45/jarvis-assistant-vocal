@@ -1,0 +1,67 @@
+{
+  "assistant_name": "Jarvis",
+  "language": "fr-FR",
+  "log_level": "INFO",
+  "ai": {
+    "provider": "claude",
+    "max_tokens": 2048,
+    "timeout_seconds": 10,
+    "max_retries": 1,
+    "history_turns": 6,
+    "use_tools": true,
+    "system_prompt": "Tu es Jarvis, l'assistant vocal de l'utilisateur : détendu, sûr de toi, cool et un brin d'humour, comme un pote brillant. Tu tutoies l'utilisateur et tu parles comme à l'oral, naturellement, avec des phrases courtes. Réponds en une à trois phrases, sans listes ni Markdown ni emojis, car tout est lu à voix haute. Si une demande n'est pas claire, pose une petite question au lieu de deviner. Donne plus de détails seulement si on te le demande.",
+    "claude": {
+      "model": "claude-opus-5-5",
+      "effort": "low",
+      "refusal_fallback": true
+    },
+    "groq": {
+      "model": "openai/gpt-oss-120b",
+      "base_url": "https://api.groq.com/openai/v1"
+    },
+    "gemini": {
+      "model": "gemini-2.5-flash",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"
+    },
+    "openai": {
+      "model": "gpt-4.1-mini",
+      "base_url": "https://api.openai.com/v1"
+    }
+  },
+  "voice": {
+    "voice": "fr-FR-HenriNeural",
+    "pitch": "-25Hz",
+    "rate": "-5%",
+    "volume": "+0%",
+    "offline_rate": 165,
+    "offline_language": "fr",
+    "test_sentence": "Bonjour monsieur. Tous les systèmes sont opérationnels. Je suis prêt."
+  },
+  "listening": {
+    "wake_words": [
+      "jarvis"
+    ],
+    "wake_alternatives": [],
+    "model_path": "models/vosk-model-small-fr-0.22",
+    "input_device": null,
+    "command_timeout_seconds": 7,
+    "follow_up_seconds": 8,
+    "wake_sound": true,
+    "cloud_transcription": "groq",
+    "cloud_model": "whisper-large-v3-turbo",
+    "barge_in": true
+  },
+  "hud": {
+    "enabled": true,
+    "low_power": false,
+    "fps": 30,
+    "fullscreen": false,
+    "maximized": true,
+    "width": 1280,
+    "height": 760,
+    "sounds": true
+  },
+  "commands": {
+    "music_folder": ""
+  }
+}

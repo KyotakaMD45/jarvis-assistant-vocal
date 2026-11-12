@@ -1,0 +1,98 @@
+"""Accurate speech-to-text in the cloud (Groq Whisper), used for the sentence after "Jarvis".
+
+Vosk (offline) keeps listening continuously for the wake word; only the short audio of a
+sentence that starts with "Jarvis" (or a sound-alike) is sent to Whisper, which understands
+real voices far better. If the cloud is unreachable, Jarvis falls back to the Vosk text.
+"""
+from __future__ import annotations
+
+import array
+import io
+import re
+import time
+import wave
+
+from jarvis.api_key import get_api_key, looks_like_key
+from jarvis.logger import get_logger
+
+log = get_logger(__name__)
+
+SAMPLE_RATE = 16000
+# Spelling hints: Whisper writes these words correctly when they appear in the prompt.
+# Kept to one word on purpose: Whisper copies longer prompts into its output on short or
+# unclear audio (it once "heard" a whole example sentence and opened WhatsApp).
+PROMPT = "Jarvis."
+# Text Whisper is known to invent on silence or noise.
+_HALLUCINATIONS = re.compile(
+    r"(sous-titr|amara\.org|merci d'avoir regard|abonnez-vous|merci de votre attention|^\W*merci\.?\W*$|^\W*$)",
+    re.IGNORECASE,
+)
+
+
+def _wav_bytes(pcm: bytes) -> bytes:
+    """16 kHz mono PCM -> WAV, louder if the microphone level is low (Whisper copes better)."""
+    samples = array.array("h", pcm[: len(pcm) - len(pcm) % 2])
+    peak = max((abs(s) for s in samples[::4]), default=0)
+    if 0 < peak < 16000:
+        gain = min(8.0, 16000 / peak)
+        samples = array.array("h", (max(-32768, min(32767, int(s * gain))) for s in samples))
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(SAMPLE_RATE)
+        wav.writeframes(samples.tobytes())
+    return buffer.getvalue()
+
+
+class GroqWhisper:
+    def __init__(self, cfg: dict):
+        self.ai = cfg["ai"]
+        self.model = cfg["listening"]["cloud_model"]
+        self._client = None
+        self._key = ""
+        self.last_error = ""
+
+    def available(self) -> bool:
+        key, _ = get_api_key("groq")
+        return bool(key) and looks_like_key(key, "groq")
+
+    def _get_client(self):
+        key, _ = get_api_key("groq")
+        if self._client is None or key != self._key:
+            from jarvis.jiter_fallback import ensure_jiter
+
+            ensure_jiter()
+            import openai
+
+            self._client = openai.OpenAI(api_key=key, base_url=self.ai["groq"]["base_url"], timeout=8.0, max_retries=0)
+            self._key = key
+        return self._client
+
+    def warm_up(self) -> None:
+        try:
+            self._get_client()
+        except Exception:  # noqa: BLE001
+            log.exception("Cloud speech recognition warm-up failed")
+
+    def transcribe(self, pcm: bytes) -> str | None:
+        """Return the text, "" for silence/noise, or None if the cloud failed (use the offline text)."""
+        if len(pcm) < SAMPLE_RATE * 2 * 0.3:  # less than 0.3 s of audio
+            return ""
+        started = time.perf_counter()
+        try:
+            result = self._get_client().audio.transcriptions.create(
+                model=self.model, file=("speech.wav", _wav_bytes(pcm), "audio/wav"),
+                language="fr", prompt=PROMPT, temperature=0, response_format="json",
+            )
+        except Exception as exc:  # noqa: BLE001 - offline, quota, bad key...: fall back to Vosk
+            self.last_error = f"{exc.__class__.__name__}: {exc}"
+            log.warning("Cloud transcription failed, using the offline text: %s", self.last_error[:200])
+            return None
+        text = (getattr(result, "text", "") or "").strip()
+        if _HALLUCINATIONS.search(text):
+            log.info("Cloud transcription ignored (noise): %r", text)
+            return ""
+        log.info("Whisper heard: %r (%.2fs, %.1fs of audio)", text, time.perf_counter() - started,
+                 len(pcm) / (SAMPLE_RATE * 2))
+        return text

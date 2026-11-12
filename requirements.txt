@@ -1,0 +1,15 @@
+anthropic>=1.0
+# Groq, Gemini and OpenAI are reached through their OpenAI-compatible API.
+openai>=1.0
+# edge-tts is pinned: Jarvis reuses its websocket helpers to keep a warm connection.
+edge-tts==7.3.1
+miniaudio>=1.61
+sounddevice>=0.5
+vosk==0.3.45
+pyttsx3>=2.98
+pywebview>=5.0
+# Tray icon, volume control, screenshots.
+pystray>=0.19
+pillow>=10.0
+pycaw>=20240210
+psutil>=5.9

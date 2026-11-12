@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.A.R.V.I.S.</title>
+<link rel="stylesheet" href="hud.css">
+</head>
+<body>
+  <!-- Static starfield + nebula (drawn once) -->
+  <canvas id="space"></canvas>
+  <!-- Flowing light waves (half resolution, scaled up = soft glow for free) -->
+  <canvas id="waves"></canvas>
+  <!-- Central core -->
+  <canvas id="orb"></canvas>
+
+  <!-- HUD frame: corner brackets + discreet readouts -->
+  <div class="frame" aria-hidden="true"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>
+  <div class="top top-left"><b>J.A.R.V.I.S.</b><span id="top-ai">AI CORE</span></div>
+  <div class="top top-right"><b id="top-time">--:--:--</b><span id="top-date">&nbsp;</span></div>
+
+  <!-- Voice bar: waveform on both sides of the microphone button -->
+  <div class="voice">
+    <canvas id="bars"></canvas>
+    <button id="mic" class="mic" type="button" aria-label="Speak now" title="Speak now (Space)">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+        <path d="M6 11a6 6 0 0 0 12 0"></path>
+        <path d="M12 17v3M9 20h6"></path>
+      </svg>
+    </button>
+  </div>
+  <div id="label" class="label">SPEAK NOW</div>
+
+  <!-- Bottom-right controls -->
+  <nav class="controls" aria-label="Jarvis controls">
+    <button type="button" data-panel="sys">SYS</button>
+    <button type="button" data-panel="web">WEB</button>
+    <button type="button" data-action="media" title="Play / pause">MEDIA</button>
+    <button type="button" data-action="repeat" title="Repeat the last answer">REPEAT</button>
+    <button type="button" data-panel="settings">SETTINGS</button>
+    <button type="button" class="gear" data-action="open_config" title="Open config.json" aria-label="Advanced settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.2a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4z" transform="translate(-1 0)"></path></svg>
+    </button>
+  </nav>
+
+  <!-- Panels (hidden until a button opens them) -->
+  <section id="panel-sys" class="panel" hidden>
+    <header>SYSTEM <span id="clock" class="clock">--:--</span></header>
+    <dl class="kv">
+      <dt>AI</dt><dd id="st-model">--</dd>
+      <dt>VOICE</dt><dd id="st-voice">--</dd>
+      <dt>MIC</dt><dd id="st-mic">--</dd>
+      <dt>NETWORK</dt><dd id="st-network">--</dd>
+      <dt>WAKE WORD</dt><dd id="st-wake">--</dd>
+      <dt>CPU</dt><dd id="cpu-val">--</dd>
+      <dt>RAM</dt><dd id="ram-val">--</dd>
+      <dt>BATTERY</dt><dd id="bat-val">--</dd>
+      <dt>RENDER</dt><dd id="st-fps">--</dd>
+    </dl>
+    <div id="log" class="log"></div>
+    <form id="command-form" class="command" autocomplete="off">
+      <input id="command" type="text" maxlength="500" placeholder="Type a command..." spellcheck="false">
+    </form>
+  </section>
+
+  <section id="panel-web" class="panel small" hidden>
+    <header>WEB SEARCH</header>
+    <form id="web-form" class="command" autocomplete="off">
+      <input id="web-query" type="text" maxlength="300" placeholder="Search the web..." spellcheck="false">
+    </form>
+  </section>
+
+  <section id="panel-settings" class="panel small" hidden>
+    <header>SETTINGS</header>
+    <div class="group-title">AI</div>
+    <div class="row" id="providers">
+      <button type="button" data-provider="claude">CLAUDE</button>
+      <button type="button" data-provider="groq">GROQ</button>
+      <button type="button" data-provider="gemini">GEMINI</button>
+      <button type="button" data-provider="openai">OPENAI</button>
+    </div>
+    <div class="group-title">VOICE</div>
+    <div class="row">
+      <button type="button" data-action="toggle_listening" id="btn-listen">MIC: ON</button>
+      <button type="button" data-action="voice_test">VOICE TEST</button>
+    </div>
+    <div class="group-title">DISPLAY</div>
+    <div class="row">
+      <button type="button" id="btn-lowpower">LOW POWER: OFF</button>
+    </div>
+  </section>
+
+  <div id="disconnected" class="disconnected" hidden>LINK LOST — RECONNECTING</div>
+
+  <script src="hud.js"></script>
+</body>
+</html>
