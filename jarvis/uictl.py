@@ -25,6 +25,12 @@ INTERACTIVE = {"ButtonControl", "EditControl", "ListItemControl", "DataItemContr
 def _auto():
     import uiautomation as auto  # imported lazily (COM initialisation, ~0.3 s)
 
+    if not getattr(auto, "_knull_log_set", False):
+        # The library writes "@AutomationLog.txt" in the current folder by default: keep it in logs.
+        from jarvis.paths import ROOT
+
+        auto.Logger.SetLogFile(str(ROOT / "uiautomation.log"))
+        auto._knull_log_set = True
     return auto
 
 

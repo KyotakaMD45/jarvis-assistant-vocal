@@ -12,3 +12,5 @@ reminders.tmp
 backup_before_ui/
 backup_before_avatar/
 voice_samples/
+@AutomationLog.txt
+uiautomation.log
