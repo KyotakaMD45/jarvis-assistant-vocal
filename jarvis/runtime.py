@@ -60,9 +60,36 @@ class Runtime:
         a.on_quit = self.quit
         a.on_restart = self.restart
         a.on_listening_changed = self.tray.refresh
+        self.remote = None
+        a.on_remote_pair = self.start_remote if self.server is not None else None
+        a.on_remote_unpair = self.stop_remote
         if self.server is not None:
             self.server.on_command = a.submit_text
             self.server.on_action = a.handle_action
+
+    # -- iPhone remote ------------------------------------------------------------------------
+    def start_remote(self) -> str | None:
+        """Start the phone server (if needed) and return the pairing URL."""
+        from jarvis.remote import RemoteServer
+        from jarvis.state import save_state
+
+        if self.server is None:
+            return None
+        if self.remote is None:
+            self.remote = RemoteServer(self.server, self.assistant.submit_text, self.assistant.handle_action)
+            self.remote.start()
+        save_state(remote_enabled=True)
+        return self.remote.url
+
+    def stop_remote(self) -> None:
+        from jarvis.remote import remote_key
+        from jarvis.state import save_state
+
+        if self.remote is not None:
+            self.remote.stop()
+            self.remote = None
+        remote_key(rotate=True)  # the old QR code / Siri shortcut stop working
+        save_state(remote_enabled=False)
 
     # -- actions (any thread) ----------------------------------------------------------------
     def show_hud(self) -> None:
@@ -92,7 +119,7 @@ class Runtime:
 
     # -- lifecycle -------------------------------------------------------------------------
     def _start_watchdog(self) -> None:
-        """A small separate process restarts Knull if it stops without being asked to."""
+        """A small separate process restarts Apex if it stops without being asked to."""
         from jarvis.watchdog import CLEAN_EXIT
 
         try:
@@ -106,6 +133,13 @@ class Runtime:
 
     def run(self) -> int:
         self._start_watchdog()
+        try:
+            from jarvis.state import load_state
+
+            if self.server is not None and load_state().get("remote_enabled"):
+                self.start_remote()
+        except OSError:
+            log.exception("iPhone remote could not start")
         self.instance.serve({"show": self.show_hud, "quit": self.quit, "restart": self.restart})
         self.reminders.start()
         self.tray.start()

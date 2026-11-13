@@ -21,7 +21,7 @@ SAMPLE_RATE = 16000
 # Spelling hints: Whisper writes these words correctly when they appear in the prompt.
 # Kept to one word on purpose: Whisper copies longer prompts into its output on short or
 # unclear audio (it once "heard" a whole example sentence and opened WhatsApp).
-PROMPT = "Knull."
+PROMPT = "Apex."
 # Text Whisper is known to invent on silence or noise.
 _HALLUCINATIONS = re.compile(
     r"(sous-titr|amara\.org|merci d'avoir regard|abonnez-vous|merci de votre attention|^\W*merci\.?\W*$|^\W*$"

@@ -1,7 +1,7 @@
-/* Knull HUD, "agent orb" style (layout inspired by the MIT-licensed APEX-UI project by
+/* Apex HUD, "agent orb" style (layout inspired by the MIT-licensed APEX-UI project by
  * Ruben Mouradian / Reznikov Engineering - see CREDITS.md; no code or branding copied):
  * teal backdrop with circuit traces, a golden ring around a cyan particle core, and the
- * assistant's real capabilities as nodes that light up when Knull uses them.
+ * assistant's real capabilities as nodes that light up when Apex uses them.
  *
  * Everything static (backdrop, traces, ring) is pre-rendered once per window size; each frame
  * only draws the particle core, the node links and a few glows.

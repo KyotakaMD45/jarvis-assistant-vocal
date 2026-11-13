@@ -39,6 +39,17 @@ class HudServer:
         self._history: list[dict] = []        # conversation log replayed to new clients
         self._server: ThreadingHTTPServer | None = None
         self.port = 0
+        self._listeners: list = []           # other consumers of the events (iPhone remote)
+
+    def add_listener(self, callback) -> None:
+        with self._lock:
+            if callback not in self._listeners:
+                self._listeners.append(callback)
+
+    def remove_listener(self, callback) -> None:
+        with self._lock:
+            if callback in self._listeners:
+                self._listeners.remove(callback)
 
     # -- publishing ----------------------------------------------------------------------
     STICKY = {"state", "stats", "status", "config"}         # last value sent to new pages
@@ -55,6 +66,12 @@ class HudServer:
                 self._history.append(message)
                 del self._history[:-200]
             clients = list(self._clients)
+            listeners = list(self._listeners)
+        for listener in listeners:
+            try:
+                listener(message)
+            except Exception:  # noqa: BLE001 - a listener must never break the assistant
+                log.exception("Event listener failed")
         for client in clients:
             try:
                 client.put_nowait(message)

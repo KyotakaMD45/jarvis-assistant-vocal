@@ -1,8 +1,8 @@
-"""Watchdog: restart Knull if it stops without being asked to.
+"""Watchdog: restart Apex if it stops without being asked to.
 
 Started by the running assistant (`python -m jarvis.watchdog <pid>`), it waits for that process to
 end. A normal quit or restart writes the marker file CLEAN_EXIT first; if it is missing, the
-process died (crash, killed...) and Knull is started again. More than 3 crashes in 10 minutes:
+process died (crash, killed...) and Apex is started again. More than 3 crashes in 10 minutes:
 stop trying (logged), so a broken install cannot restart forever.
 """
 from __future__ import annotations
@@ -56,9 +56,9 @@ def main(pid: int) -> int:
     except OSError:
         pass
     if len(recent) > 3:
-        _log(f"Knull stopped unexpectedly {len(recent)} times in 10 minutes: not restarting it. See crash.log.")
+        _log(f"Apex stopped unexpectedly {len(recent)} times in 10 minutes: not restarting it. See crash.log.")
         return 1
-    _log("Knull stopped unexpectedly (no quit was asked): restarting it.")
+    _log("Apex stopped unexpectedly (no quit was asked): restarting it.")
     pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     exe = pythonw if os.path.exists(pythonw) else sys.executable
     flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP

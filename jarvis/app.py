@@ -157,7 +157,7 @@ def _install_crash_logging() -> None:
 
     try:
         crash_file = open(ROOT / "crash.log", "a", encoding="utf-8")  # noqa: SIM115 - kept open on purpose
-        crash_file.write(f"\n--- Knull started (pid {os.getpid()}) ---\n")
+        crash_file.write(f"\n--- Apex started (pid {os.getpid()}) ---\n")
         crash_file.flush()
         faulthandler.enable(file=crash_file, all_threads=True)
     except OSError:

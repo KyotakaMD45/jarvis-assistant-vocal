@@ -27,7 +27,7 @@ _executor = None
 
 def run(fn, *args, **kwargs):
     """Run fn in the dedicated UI Automation thread. The library initialises COM for the thread
-    that imports it; in Knull the assistant thread already uses another COM mode (window, voice),
+    that imports it; in Apex the assistant thread already uses another COM mode (window, voice),
     which made the import fail ("Impossible de modifier le mode thread...")."""
     import threading
     from concurrent.futures import ThreadPoolExecutor

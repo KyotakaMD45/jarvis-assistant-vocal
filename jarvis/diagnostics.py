@@ -145,7 +145,7 @@ def _check_speech_recognition(report: Report, cfg: dict, online: bool) -> None:
 
         async def synth() -> bytes:
             data = b""
-            async for chunk in edge_tts.Communicate("Knull, quelle heure est-il ?", "fr-FR-HenriNeural").stream():
+            async for chunk in edge_tts.Communicate("Apex, quelle heure est-il ?", "fr-FR-HenriNeural").stream():
                 if chunk["type"] == "audio":
                     data += chunk["data"]
             return data
@@ -157,7 +157,7 @@ def _check_speech_recognition(report: Report, cfg: dict, online: bool) -> None:
         woke = []
         heard = listener.listen(on_wake=woke.append, should_stop=lambda: listener._audio.empty())
         if woke and heard and "heure" in heard:
-            report.ok("Wake word", f"'Knull, quelle heure est-il' -> command '{heard}'")
+            report.ok("Wake word", f"'Apex, quelle heure est-il' -> command '{heard}'")
         else:
             report.fail("Wake word", f"test sentence not understood (heard: {heard!r})",
                         "Check listening.model_path and wake_words in config.json.")
@@ -173,7 +173,7 @@ def run_diagnostics(cfg: dict, config_warnings: list[str], voice: bool = True) -
 
     brain = Brain(cfg)
     active = brain.provider_name
-    print("\nKnull self-test\n" + "-" * 40)
+    print("\nApex self-test\n" + "-" * 40)
 
     # 1. Python
     if sys.version_info >= (3, 10):

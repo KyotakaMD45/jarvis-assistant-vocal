@@ -10,7 +10,7 @@ from jarvis.paths import CONFIG_PATH
 
 
 DEFAULTS: dict[str, Any] = {
-    "assistant_name": "Knull",
+    "assistant_name": "Apex",
     "language": "fr-FR",
     "log_level": "INFO",
     "ai": {
@@ -21,7 +21,7 @@ DEFAULTS: dict[str, Any] = {
         "history_turns": 10,
         "use_tools": True,
         "system_prompt": (
-            "Tu es Knull, un assistant vocal calme, précis et efficace. "
+            "Tu es Apex, un assistant vocal calme, précis et efficace. "
             "Réponds toujours en français, en une à trois phrases courtes, "
             "sans listes ni mise en forme Markdown, car ta réponse sera lue à voix haute. "
             "Ne donne plus de détails que si l'utilisateur le demande."
@@ -50,7 +50,7 @@ DEFAULTS: dict[str, Any] = {
         "test_sentence": "Bonjour monsieur. Tous les systèmes sont opérationnels. Je suis prêt.",
     },
     "listening": {
-        "wake_words": ["knull", "apex", "jarvis"],
+        "wake_words": ["apex", "knull", "jarvis"],
         "wake_alternatives": [],
         "model_path": "models/vosk-model-small-fr-0.22",
         "input_device": None,

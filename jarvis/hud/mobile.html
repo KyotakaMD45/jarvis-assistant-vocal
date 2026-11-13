@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Apex">
+<meta name="theme-color" content="#06141f">
+<title>Apex</title>
+<style>
+  :root {
+    --bg: #06141f; --panel: rgba(10, 32, 48, 0.75); --line: rgba(90, 200, 255, 0.22);
+    --cyan: #6fe6ff; --gold: #ffc35a; --text: #e6f5ff; --muted: #86a9c2;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    background: radial-gradient(120% 60% at 50% 0%, #0d2a3b 0%, #06141f 55%, #02070c 100%); }
+  header { display: flex; align-items: center; gap: 12px; padding: 16px 0 10px; }
+  .orb { width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--gold);
+    box-shadow: 0 0 14px rgba(255, 170, 40, 0.6), inset 0 0 12px rgba(80, 220, 255, 0.6);
+    background: radial-gradient(circle, rgba(140, 240, 255, 0.9) 0, rgba(40, 150, 255, 0.25) 45%, transparent 70%); }
+  .orb.speaking { animation: pulse 0.9s ease-in-out infinite; }
+  .orb.thinking { animation: spin 1.2s linear infinite; }
+  @keyframes pulse { 50% { transform: scale(1.08); box-shadow: 0 0 22px rgba(255, 170, 40, 0.9), inset 0 0 16px rgba(80, 220, 255, 0.9); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { margin: 0; font-size: 17px; letter-spacing: 0.4em; font-weight: 600; }
+  #state { font-size: 12px; letter-spacing: 0.2em; color: var(--gold); text-transform: uppercase; }
+  .dot { margin-left: auto; width: 10px; height: 10px; border-radius: 50%; background: #c0392b; box-shadow: 0 0 8px currentColor; }
+  .dot.on { background: #2ecc71; }
+  #chat { flex: 1; overflow-y: auto; padding: 8px 0 12px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 86%; padding: 10px 13px; border-radius: 16px; line-height: 1.38; font-size: 16px; white-space: pre-wrap; word-wrap: break-word; }
+  .user { align-self: flex-end; background: rgba(60, 170, 255, 0.22); border: 1px solid rgba(111, 230, 255, 0.35); border-bottom-right-radius: 4px; }
+  .jarvis { align-self: flex-start; background: var(--panel); border: 1px solid rgba(255, 195, 90, 0.35); border-bottom-left-radius: 4px; }
+  .jarvis b, .user b { display: block; font-size: 10px; letter-spacing: 0.25em; margin-bottom: 3px; }
+  .jarvis b { color: var(--gold); } .user b { color: var(--cyan); }
+  .quick { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; }
+  .quick button, .row button { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    border-radius: 18px; padding: 9px 14px; font-size: 14px; }
+  form { display: flex; gap: 8px; padding-bottom: 10px; }
+  input { flex: 1; min-width: 0; border: 1px solid var(--line); background: rgba(4, 16, 26, 0.85); color: var(--text);
+    border-radius: 22px; padding: 12px 16px; font-size: 16px; outline: none; }
+  input:focus { border-color: var(--cyan); }
+  .send { border: 0; border-radius: 22px; padding: 0 18px; font-size: 16px; font-weight: 600; color: #1a1205;
+    background: linear-gradient(135deg, #ffd77a, #ffae2e); }
+  details { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 10px 14px; font-size: 14px; color: var(--muted); }
+  summary { color: var(--text); font-weight: 600; }
+  details ol { padding-left: 18px; line-height: 1.5; }
+  code { display: block; word-break: break-all; color: var(--cyan); background: rgba(0, 0, 0, 0.3); padding: 8px; border-radius: 8px; margin: 6px 0; font-size: 12px; }
+  label.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); padding-bottom: 8px; }
+  #locked { display: none; padding: 30px 0; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+  <header>
+    <div id="orb" class="orb" aria-hidden="true"></div>
+    <div><h1>A.P.E.X.</h1><div id="state">connexion…</div></div>
+    <span id="dot" class="dot" title="Connexion au PC"></span>
+  </header>
+
+  <div id="locked">Scannez le code QR affiché sur le PC (« Apex, connecte mon iPhone ») pour relier ce téléphone.</div>
+
+  <main id="chat" aria-live="polite"></main>
+
+  <div class="quick">
+    <button type="button" data-cmd="Quelle heure est-il ?">Heure</button>
+    <button type="button" data-action="repeat">Répéter</button>
+    <button type="button" data-action="media">Lecture / pause</button>
+    <button type="button" data-action="toggle_listening">Micro du PC</button>
+    <button type="button" data-cmd="Capture d'écran">Capture</button>
+  </div>
+  <label class="toggle"><input id="speak" type="checkbox" style="flex:none;width:auto"> Lire les réponses sur l'iPhone</label>
+  <form id="form" autocomplete="off">
+    <input id="text" type="text" placeholder="Écrivez ou dictez une commande…" enterkeyhint="send">
+    <button class="send" type="submit">Envoyer</button>
+  </form>
+
+  <details>
+    <summary>Utiliser Apex avec Siri</summary>
+    <ol>
+      <li>Ouvrez l'app <b>Raccourcis</b> &gt; <b>+</b>.</li>
+      <li>Ajoutez l'action <b>Dicter du texte</b>.</li>
+      <li>Ajoutez <b>Obtenir le contenu de l'URL</b> : collez l'adresse ci-dessous, méthode <b>POST</b>,
+          corps de requête <b>JSON</b> avec un champ <b>text</b> = <i>Texte dicté</i>.</li>
+      <li>Ajoutez <b>Obtenir la valeur du dictionnaire</b> : clé <b>reply</b>.</li>
+      <li>Ajoutez <b>Énoncer le texte</b>, puis nommez le raccourci <b>Apex</b>.</li>
+    </ol>
+    Ensuite : « Dis Siri, Apex » (le téléphone doit être sur le même Wi-Fi que le PC).
+    <code id="askurl">—</code>
+    <div class="row"><button type="button" id="copy">Copier l'adresse</button></div>
+  </details>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  let KEY = new URLSearchParams(location.search).get("k") || "";
+  try { if (KEY) localStorage.setItem("apexKey", KEY); else KEY = localStorage.getItem("apexKey") || ""; } catch (e) { /* private mode */ }
+  if (!KEY) { $("locked").style.display = "block"; }
+  const ASK_URL = `${location.origin}/api/ask?k=${encodeURIComponent(KEY)}`;
+  $("askurl").textContent = ASK_URL;
+  $("copy").onclick = () => { navigator.clipboard && navigator.clipboard.writeText(ASK_URL).then(() => { $("copy").textContent = "Copié ✓"; }); };
+
+  const STATES = { idle: "en veille", listening: "écoute", thinking: "réfléchit", speaking: "parle",
+                   paused: "micro en pause", error: "erreur", boot: "démarrage" };
+  const chat = $("chat"), bubbles = new Map();
+  let speakOn = false;
+  try { speakOn = localStorage.getItem("apexSpeak") === "1"; } catch (e) { /* ignore */ }
+  $("speak").checked = speakOn;
+  $("speak").onchange = () => { speakOn = $("speak").checked; try { localStorage.setItem("apexSpeak", speakOn ? "1" : "0"); } catch (e) { /* ignore */ } };
+
+  function bubble(role, text, id) {
+    if (role !== "user" && role !== "jarvis") return;
+    const el = document.createElement("div");
+    el.className = `msg ${role}`;
+    const who = document.createElement("b");
+    who.textContent = role === "user" ? "VOUS" : "APEX";
+    const body = document.createElement("span");
+    body.textContent = text || "";
+    el.append(who, body);
+    chat.appendChild(el);
+    while (chat.children.length > 60) chat.removeChild(chat.firstChild);
+    chat.scrollTop = chat.scrollHeight;
+    if (id) bubbles.set(id, body);
+    return body;
+  }
+  function say(text) {
+    if (!speakOn || !text || !window.speechSynthesis) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = /[a-z]/i.test(text) && !/[éèàçù]/i.test(text) && /\b(the|is|you|sir)\b/i.test(text) ? "en-US" : "fr-FR";
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }
+  function handle(m) {
+    switch (m.type) {
+      case "state":
+        $("state").textContent = STATES[m.state] || m.state;
+        $("orb").className = `orb ${m.state}`;
+        break;
+      case "log":
+        bubble(m.role, m.text, m.id);
+        if (m.role === "jarvis" && !m.streaming) say(m.text);
+        break;
+      case "log_append": { const b = bubbles.get(m.id); if (b) { b.textContent += m.text; chat.scrollTop = chat.scrollHeight; } break; }
+      case "log_end": { const b = bubbles.get(m.id); if (b) say(b.textContent); break; }
+      default: break;
+    }
+  }
+  function connect() {
+    if (!KEY) return;
+    const es = new EventSource(`/events?k=${encodeURIComponent(KEY)}`);
+    es.onopen = () => { $("dot").classList.add("on"); };
+    es.onmessage = (e) => { try { handle(JSON.parse(e.data)); } catch (err) { /* ignore */ } };
+    es.onerror = () => { $("dot").classList.remove("on"); $("state").textContent = "PC injoignable…"; };
+  }
+  function post(path, body) {
+    return fetch(`${path}?k=${encodeURIComponent(KEY)}`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body) }).catch(() => { $("state").textContent = "PC injoignable…"; });
+  }
+  $("form").onsubmit = (e) => {
+    e.preventDefault();
+    const text = $("text").value.trim();
+    if (!text) return;
+    $("text").value = "";
+    post("/api/command", { text });
+  };
+  document.querySelectorAll("[data-cmd]").forEach((b) => { b.onclick = () => post("/api/command", { text: b.dataset.cmd }); });
+  document.querySelectorAll("[data-action]").forEach((b) => { b.onclick = () => post("/api/action", { action: b.dataset.action }); });
+  connect();
+})();
+</script>
+</body>
+</html>

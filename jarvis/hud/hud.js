@@ -701,7 +701,7 @@
       });
       if (!r.ok) addLog("system", `Request rejected (${r.status}).`);
     } catch {
-      addLog("system", "Knull is not reachable.");
+      addLog("system", "Apex is not reachable.");
     }
   }
   const action = (name, value) => post("/api/action", { action: name, value: value || "" });
@@ -774,7 +774,7 @@
     const p = document.createElement("p");
     p.className = role;
     const who = document.createElement("b");
-    who.textContent = role === "user" ? "VOUS" : "KNULL";
+    who.textContent = role === "user" ? "VOUS" : "APEX";
     const body = document.createElement("span");
     body.textContent = text;
     p.append(who, body);

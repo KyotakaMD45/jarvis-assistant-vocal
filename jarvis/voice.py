@@ -28,7 +28,7 @@ log = get_logger(__name__)
 
 # What Jarvis *says* (French); the console/HUD shows the detailed English message.
 SPOKEN = {
-    "online": "Knull en ligne. À votre service, monsieur.",
+    "online": "Apex en ligne. À votre service, monsieur.",
     "no_mic": "Je n'ai pas accès au micro. Vous pouvez taper vos commandes.",
     "mic_lost": "J'ai perdu le micro. J'essaie de le reconnecter.",
     "auth": "La clé d'accès de l'intelligence artificielle n'est pas valide. Lancez le test pour plus de détails.",
@@ -93,7 +93,7 @@ class VoiceAssistant:
         # Keep the red "error" orb while an error message is spoken.
         self.speaker.on_audio_start = lambda: self._state != "error" and self._set_state("speaking")
         self.listener = Listener(cfg)
-        self.listener.echo_check = self._recent_echo  # ignore Knull's own voice coming back
+        self.listener.echo_check = self._recent_echo  # ignore Apex's own voice coming back
         self.follow_up_seconds = float(cfg["listening"]["follow_up_seconds"])
         self.wake_sound = cfg["listening"]["wake_sound"]
         self.sounds = cfg["hud"]["sounds"]
@@ -119,6 +119,8 @@ class VoiceAssistant:
         self._last_answer = ""                     # for the REPEAT button
         self._alternative: str | None = None       # offline transcript of the current sentence
         self._notes: list[str] = []                # what the last actions saw (for the AI's next step)
+        self.on_remote_pair = None                 # set by the runtime when the interface exists (iPhone)
+        self.on_remote_unpair = None
         self.barge_in = cfg["listening"]["barge_in"]
         self._ids = itertools.count(1)
 
@@ -263,7 +265,7 @@ class VoiceAssistant:
         self._spoke_at = time.monotonic()
 
     def _recent_echo(self, text: str, seconds: float = 0.0) -> bool:
-        """A sentence that started at most 2.5 s after Knull stopped talking and only repeats his
+        """A sentence that started at most 2.5 s after Apex stopped talking and only repeats his
         words is his own voice coming back (an echo is immediate; the user answers later)."""
         started = time.monotonic() - seconds
         return started - getattr(self, "_spoke_at", -99.0) < 2.5 and self._is_own_echo(text)
@@ -519,8 +521,8 @@ class VoiceAssistant:
         monitor_stop = threading.Event()
 
         def is_echo(words: list[str]) -> bool:
-            # The laptop microphone hears Knull's own voice, and the offline model turns it into other
-            # words ("description son actif"): counting unknown words made Knull cut himself off and
+            # The laptop microphone hears Apex's own voice, and the offline model turns it into other
+            # words ("description son actif"): counting unknown words made Apex cut himself off and
             # answer his own sentences. Now only a stop word or the name, said first, interrupts.
             ws = [w for w in (simple(x) for x in words) if w]
             keys = BARGE_WORDS | set(self.listener.wake_words)
@@ -736,7 +738,7 @@ class VoiceAssistant:
             text = self.listener.listen(require_wake=False, timeout=self.follow_up_seconds,
                                         on_partial=self._on_partial, should_stop=self._interrupted)
             if text and self._is_own_echo(text):
-                log.info("Follow-up ignored (Knull's own voice picked up by the microphone): %r", text)
+                log.info("Follow-up ignored (Apex's own voice picked up by the microphone): %r", text)
                 return None
             if text and self._is_filler(text):
                 # "ok", "ouais je vois", "merci"... said to Jarvis or to someone else: end the follow-up.
@@ -750,13 +752,13 @@ class VoiceAssistant:
         return ("command", text) if text else None
 
     def _is_own_echo(self, text: str) -> bool:
-        """The microphone caught the end of Knull's own answer ("Monsieur, avez…")."""
+        """The microphone caught the end of Apex's own answer ("Monsieur, avez…")."""
         last = set(simple(self._last_answer or "").split())
         words = [w for w in simple(text).split() if len(w) > 1]
         if not last or len(words) < 3:  # "Canberra ?" repeating one word is a real question
             return False
         # A new important word ("Donald Trump" in "non, le président actuel c'est Donald Trump")
-        # means the user is talking, even when the rest repeats Knull's sentence.
+        # means the user is talking, even when the rest repeats Apex's sentence.
         if any(len(w) > 3 and w not in last for w in words):
             return False
         return sum(w in last for w in words) / len(words) >= 0.6
@@ -765,7 +767,7 @@ class VoiceAssistant:
         """Learn the owner's voice: four sentences -> voiceprint.json. Then other voices are ignored."""
         if self.listener._spk_model is None:
             return "Le modèle de reconnaissance de voix n'est pas installé."
-        sentences = ["Bonjour Knull, c'est moi, ton propriétaire.", "Ouvre WhatsApp et envoie un message à mon ami.",
+        sentences = ["Bonjour Apex, c'est moi, ton propriétaire.", "Ouvre WhatsApp et envoie un message à mon ami.",
                      "Quelle heure est-il, et quel temps fait-il aujourd'hui ?", "Baisse le volume et mets un peu de musique."]
         vectors = []
         self.say("Je vais apprendre votre voix, monsieur. Répétez chaque phrase après moi, à votre distance habituelle.")

@@ -1,6 +1,6 @@
 """Use any application like a person: look at the window, click a button by its name, fill a field.
 
-What Knull sees (button and field names) is passed to the AI for its next step, so it can chain
+What Apex sees (button and field names) is passed to the AI for its next step, so it can chain
 "look -> click -> type -> check" on its own.
 """
 from __future__ import annotations
