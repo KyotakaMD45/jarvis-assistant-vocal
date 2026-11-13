@@ -762,11 +762,23 @@
         break;
       case "log_append": appendLog(msg.id, msg.text); transcriptAppend(msg.id, msg.text); break;
       case "tool": if (apex) apex.activate(msg.name); break;
+      case "qr": showQr(msg.png, msg.url); break;
       case "stats": onStats(msg); break;
       case "status": onStatus(msg); break;
       default: break;
     }
   }
+  // iPhone pairing QR code (closes by itself after 3 minutes).
+  let qrTimer = 0;
+  function showQr(png, url) {
+    $("qr-img").src = `data:image/png;base64,${png}`;
+    $("qr-url").textContent = url || "";
+    $("qr").hidden = false;
+    clearTimeout(qrTimer);
+    qrTimer = setTimeout(() => { $("qr").hidden = true; }, 180000);
+  }
+  $("qr-close").addEventListener("click", () => { $("qr").hidden = true; });
+
   // Last exchange, bottom-left (agent-orb style).
   const transcript = $("transcript");
   const tEntries = new Map();

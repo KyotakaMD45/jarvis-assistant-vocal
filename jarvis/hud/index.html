@@ -23,6 +23,15 @@
   </div>
   <!-- Last exchange -->
   <div id="transcript" class="transcript" aria-live="polite"></div>
+  <!-- iPhone pairing: QR code shown on top of everything -->
+  <div id="qr" class="qr" hidden>
+    <div class="qr-card">
+      <header>IPHONE <button type="button" id="qr-close" aria-label="Fermer">×</button></header>
+      <img id="qr-img" alt="Code QR pour relier l'iPhone">
+      <p>Ouvrez l'appareil photo de l'iPhone et visez ce code.<br>Le téléphone doit être sur le même Wi-Fi.</p>
+      <small id="qr-url"></small>
+    </div>
+  </div>
 
   <!-- HUD frame: corner brackets + discreet readouts -->
   <div class="frame" aria-hidden="true"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>

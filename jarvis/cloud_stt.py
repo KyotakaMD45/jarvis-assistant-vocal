@@ -25,7 +25,8 @@ PROMPT = "Apex."
 # Text Whisper is known to invent on silence or noise.
 _HALLUCINATIONS = re.compile(
     r"(sous-titr|amara\.org|merci d'avoir regard|abonnez-vous|merci de votre attention|^\W*merci\.?\W*$|^\W*$"
-    r"|^\W*thank(s| you)( so much| very much)?( for watching)?\W*$|^\W*(bye|you)\W*$|thanks for watching)",
+    r"|^\W*thank(s| you)( so much| very much)?( for watching)?[\s,]*(jarvis|apex|knull|sir)?\W*$|^\W*(bye|you)\W*$"
+    r"|thanks for watching)",
     re.IGNORECASE,
 )
 

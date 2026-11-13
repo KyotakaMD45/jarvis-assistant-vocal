@@ -37,6 +37,9 @@ class Ui:
     def log_end(self, entry_id: str) -> None:
         self._send("log_end", {"id": entry_id})
 
+    def qr(self, png_base64: str, url: str) -> None:
+        self._send("qr", {"png": png_base64, "url": url})
+
     def tool(self, name: str) -> None:
         self._send("tool", {"name": name})
 

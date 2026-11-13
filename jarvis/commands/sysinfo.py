@@ -57,7 +57,7 @@ COMMANDS = [
             (r"(?:utilisation|charge|etat) (?:du )?(?:processeur|cpu)|combien (?:utilise|consomme) le processeur", {"what": "cpu"}),
             (r"(?:utilisation|etat) (?:de la )?(?:memoire|ram)|combien de (?:memoire|ram)", {"what": "ram"}),
             (r"(?:espace|place) (?:libre |disque |restant )*(?:sur le |du |de mon )?(?:disque|pc|ordinateur)?|combien (?:de place|d'espace)", {"what": "disk"}),
-            (r"(?:mon |mon adresse |l'adresse |quelle est mon adresse )ip|adresse ip", {"what": "ip"}),
+            (r"(?:mon |mon adresse |l'adresse |quelle est mon adresse )ip\b|adresse ip\b", {"what": "ip"}),
             (r"(?:depuis combien de temps|depuis quand) (?:l'ordinateur|le pc|l'ordi) est allume", {"what": "uptime"}),
             (r"^(?:etat|etat du systeme|etat de l'ordinateur|comment va (?:le pc|l'ordinateur|mon pc)|diagnostic systeme)$", {"what": "all"}),
         ],

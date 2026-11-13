@@ -273,3 +273,18 @@ body.apex .transcript {
 .transcript b { font-family: var(--mono); font-weight: 600; font-size: 1.05vh; letter-spacing: 0.25em; margin-right: 0.9vh; }
 .transcript .user b { color: #6fe6ff; }
 .transcript .jarvis b { color: #ffc35a; }
+
+
+/* ---------- iPhone pairing QR ---------- */
+.qr { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(2, 8, 14, 0.72); z-index: 50; }
+.qr[hidden] { display: none; }
+.qr-card { width: min(46vh, 90vw); padding: 2vh; border-radius: 2vh; text-align: center;
+  background: rgba(8, 26, 40, 0.96); border: 1px solid rgba(255, 195, 90, 0.55);
+  box-shadow: 0 0 4vh rgba(255, 170, 40, 0.35); }
+.qr-card header { display: flex; justify-content: space-between; align-items: center; font-family: var(--mono);
+  letter-spacing: 0.35em; color: #ffc35a; font-size: 1.5vh; margin-bottom: 1.2vh; }
+.qr-card header button { background: none; border: 0; color: #dff3ff; font-size: 3vh; cursor: pointer; line-height: 1; }
+.qr-card img { width: 100%; border-radius: 1vh; background: #fff; image-rendering: pixelated; }
+.qr-card p { color: #dff3ff; font-size: 1.6vh; line-height: 1.5; margin: 1.4vh 0 0.6vh; }
+.qr-card small { color: rgba(150, 210, 255, 0.7); font-family: var(--mono); font-size: 1.1vh; word-break: break-all; }
