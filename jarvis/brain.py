@@ -53,6 +53,8 @@ TOOLS_PROMPT = (
     "Pour « ce texte », « ça », « la sélection » (résumer, traduire, corriger, reformuler, expliquer), utilise "
     "selected_text. Pour envoyer un message (WhatsApp ou mail), utilise send_message directement (il ouvre lui-même WhatsApp ou la messagerie : n'appelle pas open_app avant) ; l'utilisateur confirmera. "
     "Pour « demande à Claude / ChatGPT / Perplexity », utilise ask_web_ai. "
+    "Un réveil ou une alarme à une heure précise (« réveil à 9h03 ») se règle avec set_reminder et at_time, "
+    "pas avec un minuteur ; un minuteur (set_timer) sert pour une durée (« dans 10 minutes »). "
     "Tu utilises le PC comme son propriétaire le ferait, comme un humain : pour agir dans une application "
     "(boutons, menus, champs), regarde d'abord avec screen_look, puis utilise click_element et fill_field. "
     "N'appuie jamais sur une touche au hasard. Si aucune action ne permet de faire la demande (par exemple "
@@ -218,10 +220,11 @@ class Brain:
                 # The model sometimes writes malformed action arguments: one silent retry fixes it.
                 msg = err.message.lower()
                 malformed = any(k in msg for k in ("parse tool call", "tool_use_failed", "failed to call a function",
-                                                   "tool choice is none", "model called a tool"))
+                                                   "tool choice is none", "model called a tool", "not in request.tools"))
                 if malformed and attempt == 0 and not parts:
                     log.warning("%s sent a malformed action, retrying once", self.label)
-                    if ("tool choice is none" in msg or "model called a tool" in msg) and fallback_tools:
+                    if ("tool choice is none" in msg or "model called a tool" in msg
+                            or "not in request.tools" in msg) and fallback_tools:
                         tools = fallback_tools  # it wanted to act: give it the tools this time
                     elif "tool choice is none" in msg or "model called a tool" in msg:
                         messages = messages[:-1] + [{"role": "user", "content": user_text + "\n(Réponds simplement par "

@@ -85,6 +85,25 @@ class GroqWhisper:
     FRENCH_SHORT = {"oui", "non", "merci", "salut", "ouais", "d'accord", "daccord", "vas-y", "vas y", "ok merci",
                     "oui merci", "non merci", "bonjour", "bonsoir", "voila", "exactement", "bien sur"}
 
+    def transcribe_file(self, data: bytes, filename: str = "speech.m4a") -> str | None:
+        """Transcribe a compressed recording (from the phone). French or English, detected."""
+        started = time.perf_counter()
+        try:
+            result = self._get_client().audio.transcriptions.create(
+                model=self.model, file=(filename, data, "application/octet-stream"),
+                temperature=0, response_format="verbose_json")
+        except Exception as exc:  # noqa: BLE001
+            self.last_error = f"{exc.__class__.__name__}: {exc}"
+            log.warning("Phone audio transcription failed: %s", self.last_error[:200])
+            return None
+        detected = str(getattr(result, "language", "") or "").lower()
+        self.last_language = {"french": "fr", "english": "en"}.get(detected, self.languages[0])
+        text = (getattr(result, "text", "") or "").strip()
+        if _HALLUCINATIONS.search(text):
+            return ""
+        log.info("Whisper heard (phone): %r [%s] (%.2fs)", text, self.last_language, time.perf_counter() - started)
+        return text
+
     def transcribe(self, pcm: bytes, wake_hint: bool = True, offline: str = "") -> str | None:
         """Return the text, "" for silence/noise, or None if the cloud failed (use the offline text).
 

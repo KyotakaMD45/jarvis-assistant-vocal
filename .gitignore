@@ -19,3 +19,5 @@ uiautomation.log
 crash.log
 voiceprint.json
 iphone_qr.png
+remote_cert.pem
+remote_key.pem

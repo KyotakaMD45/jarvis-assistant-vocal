@@ -216,6 +216,7 @@ class ReminderService:
                     text = f"Rappel manqué pendant que j'étais éteint : {what}."
                 else:
                     text = f"Rappel : {what}."
+                log.info("Reminder due: %s", text)
                 try:
                     self.on_due(text)
                 except Exception:  # noqa: BLE001

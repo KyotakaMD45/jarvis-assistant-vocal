@@ -37,6 +37,12 @@ class Ui:
     def log_end(self, entry_id: str) -> None:
         self._send("log_end", {"id": entry_id})
 
+    def confirm(self, question: str) -> None:
+        self._send("confirm", {"text": question})
+
+    def alarm(self, text: str) -> None:
+        self._send("alarm", {"text": text})
+
     def qr(self, png_base64: str, url: str) -> None:
         self._send("qr", {"png": png_base64, "url": url})
 

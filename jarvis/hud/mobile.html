@@ -10,87 +10,127 @@
 <title>Apex</title>
 <style>
   :root {
-    --bg: #06141f; --panel: rgba(10, 32, 48, 0.75); --line: rgba(90, 200, 255, 0.22);
+    --bg: #06141f; --panel: rgba(10, 32, 48, 0.78); --line: rgba(90, 200, 255, 0.22);
     --cyan: #6fe6ff; --gold: #ffc35a; --text: #e6f5ff; --muted: #86a9c2;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-    font-family: -apple-system, "SF Pro Text", "Segoe UI", sans-serif; }
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", sans-serif; overscroll-behavior: none; }
   body { display: flex; flex-direction: column; padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
-    background: radial-gradient(120% 60% at 50% 0%, #0d2a3b 0%, #06141f 55%, #02070c 100%); }
-  header { display: flex; align-items: center; gap: 12px; padding: 16px 0 10px; }
-  .orb { width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--gold);
-    box-shadow: 0 0 14px rgba(255, 170, 40, 0.6), inset 0 0 12px rgba(80, 220, 255, 0.6);
-    background: radial-gradient(circle, rgba(140, 240, 255, 0.9) 0, rgba(40, 150, 255, 0.25) 45%, transparent 70%); }
-  .orb.speaking { animation: pulse 0.9s ease-in-out infinite; }
-  .orb.thinking { animation: spin 1.2s linear infinite; }
-  @keyframes pulse { 50% { transform: scale(1.08); box-shadow: 0 0 22px rgba(255, 170, 40, 0.9), inset 0 0 16px rgba(80, 220, 255, 0.9); } }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  h1 { margin: 0; font-size: 17px; letter-spacing: 0.4em; font-weight: 600; }
-  #state { font-size: 12px; letter-spacing: 0.2em; color: var(--gold); text-transform: uppercase; }
-  .dot { margin-left: auto; width: 10px; height: 10px; border-radius: 50%; background: #c0392b; box-shadow: 0 0 8px currentColor; }
-  .dot.on { background: #2ecc71; }
-  #chat { flex: 1; overflow-y: auto; padding: 8px 0 12px; display: flex; flex-direction: column; gap: 8px; }
-  .msg { max-width: 86%; padding: 10px 13px; border-radius: 16px; line-height: 1.38; font-size: 16px; white-space: pre-wrap; word-wrap: break-word; }
-  .user { align-self: flex-end; background: rgba(60, 170, 255, 0.22); border: 1px solid rgba(111, 230, 255, 0.35); border-bottom-right-radius: 4px; }
-  .jarvis { align-self: flex-start; background: var(--panel); border: 1px solid rgba(255, 195, 90, 0.35); border-bottom-left-radius: 4px; }
-  .jarvis b, .user b { display: block; font-size: 10px; letter-spacing: 0.25em; margin-bottom: 3px; }
+    background:
+      linear-gradient(rgba(90, 190, 255, 0.045) 1px, transparent 1px) 0 0 / 34px 34px,
+      linear-gradient(90deg, rgba(90, 190, 255, 0.045) 1px, transparent 1px) 0 0 / 34px 34px,
+      radial-gradient(120% 70% at 50% 18%, #0f2f42 0%, #06141f 55%, #02070c 100%); }
+  .hero { position: relative; display: flex; flex-direction: column; align-items: center; padding: 10px 0 2px; }
+  .hero canvas { width: 168px; height: 168px; }
+  .brand { position: absolute; top: 12px; left: 0; font-size: 11px; letter-spacing: 0.35em; color: rgba(150, 210, 255, 0.65); }
+  .dot { position: absolute; top: 12px; right: 0; width: 10px; height: 10px; border-radius: 50%; background: #c0392b; box-shadow: 0 0 8px #c0392b; }
+  .dot.on { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+  #state { margin-top: 2px; font-size: 12px; letter-spacing: 0.45em; color: var(--gold); text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(255, 170, 40, 0.6); }
+  #chat { flex: 1; overflow-y: auto; padding: 10px 0 12px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 86%; padding: 10px 13px; border-radius: 16px; line-height: 1.38; font-size: 16px; white-space: pre-wrap; word-wrap: break-word;
+    animation: pop 0.25s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } }
+  .user { align-self: flex-end; background: rgba(60, 170, 255, 0.2); border: 1px solid rgba(111, 230, 255, 0.35); border-bottom-right-radius: 4px; }
+  .jarvis { align-self: flex-start; background: var(--panel); border: 1px solid rgba(255, 195, 90, 0.35); border-bottom-left-radius: 4px;
+    box-shadow: 0 0 18px rgba(255, 170, 40, 0.08); }
+  .msg b { display: block; font-size: 10px; letter-spacing: 0.25em; margin-bottom: 3px; }
   .jarvis b { color: var(--gold); } .user b { color: var(--cyan); }
-  .quick { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; }
-  .quick button, .row button { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--text);
-    border-radius: 18px; padding: 9px 14px; font-size: 14px; }
-  form { display: flex; gap: 8px; padding-bottom: 10px; }
-  input { flex: 1; min-width: 0; border: 1px solid var(--line); background: rgba(4, 16, 26, 0.85); color: var(--text);
-    border-radius: 22px; padding: 12px 16px; font-size: 16px; outline: none; }
-  input:focus { border-color: var(--cyan); }
-  .send { border: 0; border-radius: 22px; padding: 0 18px; font-size: 16px; font-weight: 600; color: #1a1205;
+  .confirm { align-self: stretch; display: flex; gap: 10px; }
+  .confirm button { flex: 1; padding: 14px; border-radius: 14px; font-size: 17px; font-weight: 700; border: 0; }
+  .confirm .yes { background: linear-gradient(135deg, #ffd77a, #ffae2e); color: #1a1205; }
+  .confirm .no { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+  .quick { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 8px; scrollbar-width: none; }
+  .quick button { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    border-radius: 18px; padding: 8px 13px; font-size: 14px; }
+  .bar { display: flex; gap: 10px; align-items: center; padding-bottom: 10px; }
+  .mic { flex: none; width: 58px; height: 58px; border-radius: 50%; border: 2px solid var(--gold);
+    background: radial-gradient(circle, rgba(255, 200, 80, 0.25), rgba(10, 30, 45, 0.9) 70%); color: var(--gold);
+    box-shadow: 0 0 16px rgba(255, 170, 40, 0.45); display: grid; place-items: center; }
+  .mic svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .mic.rec { color: #1a1205; background: linear-gradient(135deg, #ffd77a, #ff9d1e); animation: rec 1s ease-in-out infinite; }
+  @keyframes rec { 50% { box-shadow: 0 0 34px rgba(255, 170, 40, 0.95); } }
+  form { flex: 1; display: flex; gap: 8px; min-width: 0; }
+  input[type=text] { flex: 1; min-width: 0; border: 1px solid var(--line); background: rgba(4, 16, 26, 0.85); color: var(--text);
+    border-radius: 22px; padding: 12px 14px; font-size: 16px; outline: none; }
+  input[type=text]:focus { border-color: var(--cyan); }
+  .send { border: 0; border-radius: 22px; padding: 0 14px; font-size: 15px; font-weight: 600; color: #1a1205;
     background: linear-gradient(135deg, #ffd77a, #ffae2e); }
-  details { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 10px 14px; font-size: 14px; color: var(--muted); }
+  .opts { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); padding-bottom: 8px; }
+  .opts label { display: flex; align-items: center; gap: 6px; }
+  .opts a { color: var(--cyan); }
+  details { margin: 0 0 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 10px 14px; font-size: 14px; color: var(--muted); }
   summary { color: var(--text); font-weight: 600; }
   details ol { padding-left: 18px; line-height: 1.5; }
   code { display: block; word-break: break-all; color: var(--cyan); background: rgba(0, 0, 0, 0.3); padding: 8px; border-radius: 8px; margin: 6px 0; font-size: 12px; }
-  label.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); padding-bottom: 8px; }
+  .alarm { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    background: rgba(2, 8, 14, 0.9); padding: 30px; text-align: center; }
+  .alarm[hidden] { display: none; }
+  .alarm .bell { font-size: 64px; animation: ring 0.5s ease-in-out infinite alternate; }
+  @keyframes ring { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+  .alarm p { font-size: 22px; line-height: 1.4; margin: 0; }
+  .alarm button { padding: 14px 40px; border-radius: 16px; border: 0; font-size: 18px; font-weight: 700;
+    background: linear-gradient(135deg, #ffd77a, #ffae2e); color: #1a1205; }
+  .toast { position: fixed; left: 16px; right: 16px; bottom: calc(110px + env(safe-area-inset-bottom)); z-index: 5; padding: 12px 14px;
+    border-radius: 12px; background: rgba(8, 26, 40, 0.97); border: 1px solid var(--line); font-size: 14px; color: var(--text); }
+  .toast[hidden] { display: none; }
   #locked { display: none; padding: 30px 0; text-align: center; color: var(--muted); }
 </style>
 </head>
 <body>
-  <header>
-    <div id="orb" class="orb" aria-hidden="true"></div>
-    <div><h1>A.P.E.X.</h1><div id="state">connexion…</div></div>
+  <section class="hero">
+    <span class="brand">A.P.E.X.</span>
     <span id="dot" class="dot" title="Connexion au PC"></span>
-  </header>
+    <canvas id="orb" width="336" height="336" aria-hidden="true"></canvas>
+    <div id="state">connexion…</div>
+  </section>
 
   <div id="locked">Scannez le code QR affiché sur le PC (« Apex, connecte mon iPhone ») pour relier ce téléphone.</div>
-
   <main id="chat" aria-live="polite"></main>
 
   <div class="quick">
     <button type="button" data-cmd="Quelle heure est-il ?">Heure</button>
     <button type="button" data-action="repeat">Répéter</button>
     <button type="button" data-action="media">Lecture / pause</button>
-    <button type="button" data-action="toggle_listening">Micro du PC</button>
+    <button type="button" data-cmd="Monte le volume">Volume +</button>
+    <button type="button" data-cmd="Baisse le volume">Volume −</button>
     <button type="button" data-cmd="Capture d'écran">Capture</button>
+    <button type="button" data-action="toggle_listening">Micro du PC</button>
   </div>
-  <label class="toggle"><input id="speak" type="checkbox" style="flex:none;width:auto"> Lire les réponses sur l'iPhone</label>
-  <form id="form" autocomplete="off">
-    <input id="text" type="text" placeholder="Écrivez ou dictez une commande…" enterkeyhint="send">
-    <button class="send" type="submit">Envoyer</button>
-  </form>
+  <div class="bar">
+    <button id="mic" class="mic" type="button" aria-label="Parler à Apex">
+      <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6 11a6 6 0 0 0 12 0"></path><path d="M12 17v3M9 20h6"></path></svg>
+    </button>
+    <form id="form" autocomplete="off">
+      <input id="text" type="text" placeholder="Écrivez ou dictez…" enterkeyhint="send">
+      <button class="send" type="submit">OK</button>
+    </form>
+  </div>
+  <div class="opts">
+    <label><input id="speak" type="checkbox"> Lire les réponses ici</label>
+    <a id="secure" href="#" hidden>Activer le micro</a>
+  </div>
 
   <details>
     <summary>Utiliser Apex avec Siri</summary>
     <ol>
-      <li>Ouvrez l'app <b>Raccourcis</b> &gt; <b>+</b>.</li>
-      <li>Ajoutez l'action <b>Dicter du texte</b>.</li>
+      <li>App <b>Raccourcis</b> &gt; <b>+</b>, ajoutez <b>Dicter du texte</b>.</li>
       <li>Ajoutez <b>Obtenir le contenu de l'URL</b> : collez l'adresse ci-dessous, méthode <b>POST</b>,
-          corps de requête <b>JSON</b> avec un champ <b>text</b> = <i>Texte dicté</i>.</li>
-      <li>Ajoutez <b>Obtenir la valeur du dictionnaire</b> : clé <b>reply</b>.</li>
-      <li>Ajoutez <b>Énoncer le texte</b>, puis nommez le raccourci <b>Apex</b>.</li>
+          corps <b>JSON</b> avec un champ <b>text</b> = <i>Texte dicté</i>.</li>
+      <li>Ajoutez <b>Obtenir la valeur du dictionnaire</b> (clé <b>reply</b>), puis <b>Énoncer le texte</b>.</li>
+      <li>Nommez le raccourci <b>Apex</b>, puis dites « Dis Siri, Apex ».</li>
     </ol>
-    Ensuite : « Dis Siri, Apex » (le téléphone doit être sur le même Wi-Fi que le PC).
     <code id="askurl">—</code>
-    <div class="row"><button type="button" id="copy">Copier l'adresse</button></div>
+    <button type="button" id="copy" class="send" style="padding:8px 14px">Copier l'adresse</button>
   </details>
+
+  <div id="alarm" class="alarm" hidden>
+    <div class="bell">⏰</div>
+    <p id="alarm-text"></p>
+    <button type="button" id="alarm-stop">Arrêter</button>
+  </div>
+  <div id="toast" class="toast" hidden></div>
 
 <script>
 (() => {
@@ -98,21 +138,88 @@
   const $ = (id) => document.getElementById(id);
   let KEY = new URLSearchParams(location.search).get("k") || "";
   try { if (KEY) localStorage.setItem("apexKey", KEY); else KEY = localStorage.getItem("apexKey") || ""; } catch (e) { /* private mode */ }
-  if (!KEY) { $("locked").style.display = "block"; }
-  const ASK_URL = `${location.origin}/api/ask?k=${encodeURIComponent(KEY)}`;
-  $("askurl").textContent = ASK_URL;
-  $("copy").onclick = () => { navigator.clipboard && navigator.clipboard.writeText(ASK_URL).then(() => { $("copy").textContent = "Copié ✓"; }); };
+  if (!KEY) $("locked").style.display = "block";
+  const q = `?k=${encodeURIComponent(KEY)}`;
+  const port = Number(location.port || (location.protocol === "https:" ? 443 : 80));
+  const httpBase = location.protocol === "https:" ? `http://${location.hostname}:${port - 1}` : location.origin;
+  const secureUrl = location.protocol === "https:" ? location.href : `https://${location.hostname}:${port + 1}/${q}`;
+  $("askurl").textContent = `${httpBase}/api/ask${q}`;
+  $("copy").onclick = () => navigator.clipboard && navigator.clipboard.writeText($("askurl").textContent).then(() => { $("copy").textContent = "Copié ✓"; });
 
-  const STATES = { idle: "en veille", listening: "écoute", thinking: "réfléchit", speaking: "parle",
-                   paused: "micro en pause", error: "erreur", boot: "démarrage" };
+  function toast(text, ms = 4500) {
+    const t = $("toast"); t.textContent = text; t.hidden = false;
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, ms);
+  }
+
+  // ---- Apex orb: golden ring + rotating particle core ----------------------------------------
+  const orb = { state: "boot", level: 0, spin: 0, parts: [] };
+  (function makeParts() {
+    let s = 7; const R = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (let i = 0; i < 380; i++) {
+      const th = 6.2832 * R(), ph = Math.acos(2 * R() - 1), r = Math.pow(R(), 0.55) * 0.9;
+      orb.parts.push([Math.sin(ph) * Math.cos(th) * r, Math.cos(ph) * r, Math.sin(ph) * Math.sin(th) * r, R() * 6.28]);
+    }
+  })();
+  const cv = $("orb"), g = cv.getContext("2d");
+  let last = performance.now();
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const t = now / 1000, st = orb.state;
+    const W = cv.width, m = W / 2, R = W * 0.36;
+    const voice = st === "speaking" ? 0.35 + 0.35 * Math.abs(Math.sin(t * 7)) : (st === "rec" || st === "listening") ? orb.level : 0;
+    orb.spin += dt * (st === "thinking" ? 2.2 : st === "speaking" ? 0.9 : 0.4);
+    g.clearRect(0, 0, W, W);
+    g.globalCompositeOperation = "lighter";
+    const halo = g.createRadialGradient(m, m, R * 0.8, m, m, R * 1.35);
+    halo.addColorStop(0, "rgba(255,170,40,0)"); halo.addColorStop(0.4, `rgba(255,170,40,${0.16 + voice * 0.2})`); halo.addColorStop(1, "rgba(255,170,40,0)");
+    g.fillStyle = halo; g.fillRect(0, 0, W, W);
+    const core = g.createRadialGradient(m, m, 0, m, m, R * 0.8);
+    core.addColorStop(0, `rgba(120,240,255,${0.45 + voice * 0.3})`); core.addColorStop(0.4, "rgba(40,170,255,0.14)"); core.addColorStop(1, "rgba(20,90,200,0)");
+    g.fillStyle = core; g.fillRect(0, 0, W, W);
+    // particles
+    const rad = R * (0.62 + voice * 0.18), ca = Math.cos(orb.spin), sa = Math.sin(orb.spin);
+    for (const p of orb.parts) {
+      const x1 = p[0] * ca + p[2] * sa, z1 = -p[0] * sa + p[2] * ca;
+      const y2 = p[1] * 0.94 - z1 * 0.34, z2 = p[1] * 0.34 + z1 * 0.94;
+      const f = 1 / (1.6 - z2 * 0.5);
+      const a = Math.max(0.12, Math.min(1, 0.5 + z2 * 0.5)) * (0.75 + 0.25 * Math.sin(t * 3 + p[3]));
+      g.fillStyle = st === "error" ? `rgba(255,120,110,${a})` : `rgba(110,235,255,${a})`;
+      const sz = 2.2 * f;
+      g.fillRect(m + x1 * rad * f * 1.4 - sz / 2, m + y2 * rad * f * 1.4 - sz / 2, sz, sz);
+    }
+    // golden ring
+    g.globalCompositeOperation = "source-over";
+    g.save(); g.shadowColor = "rgba(255,170,40,0.95)"; g.shadowBlur = 18 + voice * 20;
+    const gold = g.createLinearGradient(m - R, m - R, m + R, m + R);
+    gold.addColorStop(0, "#ffd77a"); gold.addColorStop(0.5, "#ffae2e"); gold.addColorStop(1, "#ffcf63");
+    g.strokeStyle = gold; g.lineWidth = W * 0.022;
+    g.beginPath(); g.arc(m, m, R * (1 + voice * 0.03), 0, 6.2832); g.stroke(); g.restore();
+    g.strokeStyle = "rgba(255,200,110,0.35)"; g.lineWidth = 1.5;
+    for (let i = 0; i < 72; i++) {
+      const a = i / 72 * 6.2832, r1 = R * 1.07, r2 = R * (i % 6 === 0 ? 1.13 : 1.1);
+      g.beginPath(); g.moveTo(m + Math.cos(a) * r1, m + Math.sin(a) * r1); g.lineTo(m + Math.cos(a) * r2, m + Math.sin(a) * r2); g.stroke();
+    }
+    for (let i = 0; i < 3; i++) {   // orbiting dots
+      const a = t * (0.5 + i * 0.15) + i * 2.1;
+      g.fillStyle = "rgba(255,230,170,0.95)";
+      g.beginPath(); g.arc(m + Math.cos(a) * R, m + Math.sin(a) * R, W * 0.012, 0, 6.2832); g.fill();
+    }
+  }
+  requestAnimationFrame(frame);
+
+  // ---- conversation -------------------------------------------------------------------------
+  const STATES = { idle: "standby", listening: "écoute", thinking: "réfléchit", speaking: "parle",
+                   paused: "micro en pause", error: "erreur", boot: "démarrage", rec: "je vous écoute" };
   const chat = $("chat"), bubbles = new Map();
   let speakOn = false;
   try { speakOn = localStorage.getItem("apexSpeak") === "1"; } catch (e) { /* ignore */ }
   $("speak").checked = speakOn;
-  $("speak").onchange = () => { speakOn = $("speak").checked; try { localStorage.setItem("apexSpeak", speakOn ? "1" : "0"); } catch (e) { /* ignore */ } };
+  $("speak").onchange = () => { speakOn = $("speak").checked; unlockAudio(); try { localStorage.setItem("apexSpeak", speakOn ? "1" : "0"); } catch (e) { /* ignore */ } };
+  function setState(s) { if (orb.state !== "rec") orb.state = s; $("state").textContent = STATES[orb.state] || s; }
 
   function bubble(role, text, id) {
-    if (role !== "user" && role !== "jarvis") return;
+    if (role !== "user" && role !== "jarvis") return null;
     const el = document.createElement("div");
     el.className = `msg ${role}`;
     const who = document.createElement("b");
@@ -129,44 +236,140 @@
   function say(text) {
     if (!speakOn || !text || !window.speechSynthesis) return;
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = /[a-z]/i.test(text) && !/[éèàçù]/i.test(text) && /\b(the|is|you|sir)\b/i.test(text) ? "en-US" : "fr-FR";
+    u.lang = /\b(the|is|you|sir|your)\b/i.test(text) && !/[éèàçù]/i.test(text) ? "en-US" : "fr-FR";
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   }
+  function confirmBox(question) {
+    document.querySelectorAll(".confirm").forEach((c) => c.remove());
+    const box = document.createElement("div");
+    box.className = "confirm";
+    for (const [label, cls, answer] of [["Oui", "yes", "oui"], ["Non", "no", "non"]]) {
+      const b = document.createElement("button");
+      b.className = cls; b.textContent = label;
+      b.onclick = () => { box.remove(); post("/api/command", { text: answer }); };
+      box.appendChild(b);
+    }
+    chat.appendChild(box); chat.scrollTop = chat.scrollHeight;
+    if (navigator.vibrate) navigator.vibrate(120);
+  }
+
+  // ---- alarm (reminders, timers) --------------------------------------------------------------
+  let audioCtx = null, alarmTimer = 0;
+  function unlockAudio() {
+    try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === "suspended") audioCtx.resume(); } catch (e) { /* ignore */ }
+  }
+  document.addEventListener("touchend", unlockAudio, { once: true });
+  document.addEventListener("click", unlockAudio, { once: true });
+  function beep() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    [880, 1175, 880, 1175].forEach((f, i) => {
+      const o = audioCtx.createOscillator(), gn = audioCtx.createGain();
+      o.frequency.value = f; o.connect(gn); gn.connect(audioCtx.destination);
+      gn.gain.setValueAtTime(0.0001, now + i * 0.25); gn.gain.exponentialRampToValueAtTime(0.4, now + i * 0.25 + 0.02);
+      gn.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.25 + 0.22);
+      o.start(now + i * 0.25); o.stop(now + i * 0.25 + 0.24);
+    });
+  }
+  function alarm(text) {
+    $("alarm-text").textContent = text; $("alarm").hidden = false;
+    beep(); clearInterval(alarmTimer); alarmTimer = setInterval(beep, 2500);
+    if (navigator.vibrate) navigator.vibrate([400, 200, 400]);
+    if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(text); u.lang = "fr-FR"; speechSynthesis.speak(u); }
+    setTimeout(() => { if (!$("alarm").hidden) stopAlarm(); }, 60000);
+  }
+  function stopAlarm() { clearInterval(alarmTimer); $("alarm").hidden = true; }
+  $("alarm-stop").onclick = stopAlarm;
+
   function handle(m) {
     switch (m.type) {
-      case "state":
-        $("state").textContent = STATES[m.state] || m.state;
-        $("orb").className = `orb ${m.state}`;
-        break;
+      case "state": setState(m.state); break;
       case "log":
         bubble(m.role, m.text, m.id);
         if (m.role === "jarvis" && !m.streaming) say(m.text);
         break;
       case "log_append": { const b = bubbles.get(m.id); if (b) { b.textContent += m.text; chat.scrollTop = chat.scrollHeight; } break; }
       case "log_end": { const b = bubbles.get(m.id); if (b) say(b.textContent); break; }
+      case "confirm": confirmBox(m.text); break;
+      case "alarm": alarm(m.text); break;
       default: break;
     }
   }
   function connect() {
     if (!KEY) return;
-    const es = new EventSource(`/events?k=${encodeURIComponent(KEY)}`);
+    const es = new EventSource(`/events${q}`);
     es.onopen = () => { $("dot").classList.add("on"); };
     es.onmessage = (e) => { try { handle(JSON.parse(e.data)); } catch (err) { /* ignore */ } };
     es.onerror = () => { $("dot").classList.remove("on"); $("state").textContent = "PC injoignable…"; };
   }
   function post(path, body) {
-    return fetch(`${path}?k=${encodeURIComponent(KEY)}`, { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body) }).catch(() => { $("state").textContent = "PC injoignable…"; });
+    return fetch(`${path}${q}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .catch(() => toast("PC injoignable. Le téléphone est-il sur le même Wi-Fi ?"));
   }
   $("form").onsubmit = (e) => {
-    e.preventDefault();
+    e.preventDefault(); unlockAudio();
     const text = $("text").value.trim();
     if (!text) return;
     $("text").value = "";
     post("/api/command", { text });
   };
-  document.querySelectorAll("[data-cmd]").forEach((b) => { b.onclick = () => post("/api/command", { text: b.dataset.cmd }); });
-  document.querySelectorAll("[data-action]").forEach((b) => { b.onclick = () => post("/api/action", { action: b.dataset.action }); });
+  document.querySelectorAll("[data-cmd]").forEach((b) => { b.onclick = () => { unlockAudio(); post("/api/command", { text: b.dataset.cmd }); }; });
+  document.querySelectorAll("[data-action]").forEach((b) => { b.onclick = () => { unlockAudio(); post("/api/action", { action: b.dataset.action }); }; });
+
+  // ---- voice from the iPhone: record, send to the PC (Whisper), Apex answers -----------------
+  const canRecord = window.isSecureContext && navigator.mediaDevices && window.MediaRecorder;
+  if (!canRecord) {
+    $("secure").hidden = false; $("secure").href = secureUrl;
+    $("secure").onclick = (e) => {
+      e.preventDefault();
+      if (confirm("Pour utiliser le micro, l'iPhone doit ouvrir l'adresse sécurisée d'Apex. La première fois, Safari affiche « Cette connexion n'est pas privée » : c'est le certificat local de votre PC. Touchez « Afficher les détails » puis « visiter ce site web ». Continuer ?")) location.href = secureUrl;
+    };
+  }
+  let rec = null, chunks = [], stream = null, analyser = null, levelTimer = 0, stopTimer = 0;
+  async function startRec() {
+    unlockAudio();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (e) { toast("Micro refusé. Autorisez le micro pour cette page dans Réglages > Safari."); return; }
+    const type = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || "";
+    rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = sendRec;
+    rec.start();
+    orb.state = "rec"; $("state").textContent = STATES.rec; $("mic").classList.add("rec");
+    try {
+      const src = audioCtx.createMediaStreamSource(stream); analyser = audioCtx.createAnalyser(); analyser.fftSize = 512; src.connect(analyser);
+      const buf = new Uint8Array(analyser.fftSize);
+      levelTimer = setInterval(() => { analyser.getByteTimeDomainData(buf); let p = 0; for (const v of buf) p = Math.max(p, Math.abs(v - 128)); orb.level = Math.min(1, p / 70); }, 60);
+    } catch (e) { /* level display only */ }
+    stopTimer = setTimeout(stopRec, 15000);
+  }
+  function stopRec() {
+    clearTimeout(stopTimer); clearInterval(levelTimer); orb.level = 0;
+    if (rec && rec.state !== "inactive") rec.stop();
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    $("mic").classList.remove("rec"); orb.state = "thinking"; $("state").textContent = STATES.thinking;
+  }
+  async function sendRec() {
+    const blob = new Blob(chunks, { type: (rec && rec.mimeType) || "audio/mp4" });
+    if (blob.size < 2000) { orb.state = "idle"; toast("Trop court : touchez le micro, parlez, puis touchez à nouveau."); return; }
+    try {
+      const r = await fetch(`/api/audio${q}`, { method: "POST", headers: { "Content-Type": blob.type || "audio/mp4" }, body: blob });
+      const data = await r.json();
+      if (!data.heard) toast(data.reply || "Je n'ai pas compris.");
+    } catch (e) { toast("Envoi impossible. Le PC est-il allumé et sur le même Wi-Fi ?"); }
+    orb.state = "idle";
+  }
+  $("mic").onclick = () => {
+    if (!canRecord) {
+      toast("Le micro de cette page demande l'adresse sécurisée : touchez « Activer le micro ». Sinon, utilisez la dictée du clavier (🎤).", 7000);
+      $("text").focus();
+      return;
+    }
+    if (rec && rec.state === "recording") stopRec(); else startRec();
+  };
+  window.__apexHandle = handle; // tests
   connect();
 })();
 </script>

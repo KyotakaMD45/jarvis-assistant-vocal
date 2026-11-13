@@ -76,7 +76,14 @@ class Runtime:
         if self.server is None:
             return None
         if self.remote is None:
-            self.remote = RemoteServer(self.server, self.assistant.submit_text, self.assistant.handle_action)
+            stt = self.assistant.listener
+
+            def transcribe(data: bytes, name: str) -> str | None:
+                t = getattr(stt, "transcriber", None)
+                return t.transcribe_file(data, name) if t is not None and t.available() else None
+
+            self.remote = RemoteServer(self.server, lambda text: self.assistant.submit_text(text, source="phone"),
+                                       self.assistant.handle_action, transcribe=transcribe)
             self.remote.start()
         save_state(remote_enabled=True)
         return self.remote.url

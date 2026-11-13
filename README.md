@@ -48,6 +48,10 @@ to get the phone page: live conversation, type or dictate commands, quick button
 The page also explains how to make a **Siri shortcut** ("Dis Siri, Apex") that calls `/api/ask` and reads
 Apex's answer. Windows may ask to allow network access the first time: allow **private networks**.
 "Apex, déconnecte mon iPhone" stops it and changes the secret key.
+**Voice from the iPhone**: tap the gold microphone on the phone page. The iPhone only lets a web page use
+its microphone on a secure address, so the page offers "Activer le micro" (https, port 8771, local
+self-signed certificate: Safari warns once, tap "Afficher les détails" then "visiter ce site web").
+Confirmations ("J'envoie ?") show **Oui / Non** buttons on the phone, and reminders ring on the phone too.
 
 ## Contacts (messages)
 

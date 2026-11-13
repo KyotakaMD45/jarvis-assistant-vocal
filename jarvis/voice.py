@@ -112,6 +112,10 @@ class VoiceAssistant:
         self._state = "boot"
         self._typed: queue.Queue[str] = queue.Queue()
         self._announcements: queue.Queue[str] = queue.Queue()
+        from collections import deque
+
+        self._phone_texts: deque = deque(maxlen=20)  # commands that came from the phone
+        self._turn_source = "pc"
         self._stop = threading.Event()
         self._exit_action: str | None = None       # "quit" / "restart" after the current answer
         self._push_to_talk = threading.Event()     # mic button / Space in the HUD
@@ -125,14 +129,29 @@ class VoiceAssistant:
         self._ids = itertools.count(1)
 
     # -- control from other threads (HUD, tray, reminders) -----------------------------
-    def submit_text(self, text: str) -> None:
-        """A command typed in the HUD."""
+    def submit_text(self, text: str, source: str = "hud") -> None:
+        """A command typed in the HUD, or sent from the phone (source="phone")."""
+        if source == "phone":
+            self._phone_texts.append(text)
         self._typed.put(text)
 
     def announce(self, text: str) -> None:
         """Say something as soon as possible (reminders). Also shown as a notification."""
         self._announcements.put(text)
         self.notify(self.cfg["assistant_name"], text)
+        self.ui.alarm(text)  # banner + sound on the PC interface and on the phone
+
+        def ring() -> None:
+            try:
+                import winsound
+
+                for _ in range(3):
+                    winsound.Beep(880, 220)
+                    winsound.Beep(1175, 220)
+            except Exception:  # noqa: BLE001 - no sound card: the voice still speaks
+                pass
+
+        threading.Thread(target=ring, name="alarm", daemon=True).start()
 
     def request_stop(self) -> None:
         self._stop.set()
@@ -275,7 +294,16 @@ class VoiceAssistant:
         question = self._localize(question) or question
         self.say(question)
         answer = None
-        if self.mic_ok and self.listening_enabled:
+        if self._turn_source == "phone":
+            # Asked from the iPhone: "Oui / Non" buttons on the phone, no PC microphone.
+            self.ui.confirm(question)
+            try:
+                answer = self._typed.get(timeout=60)
+            except queue.Empty:
+                answer = ""
+            if answer in self._phone_texts:
+                self._phone_texts.remove(answer)
+        elif self.mic_ok and self.listening_enabled:
             self._set_state("listening")
             self.listener.unmute()
             try:
@@ -546,7 +574,7 @@ class VoiceAssistant:
                 if getattr(self, "_turn_lang", "fr") == "en":
                     prompt += "\n(The user is speaking English: answer in English.)"
                 hidden: list[str] = []
-                fallback = self._select_tools(text) if (tools is None and self.use_tools) else None
+                fallback = commands.tool_specs() if self.use_tools else None  # every tool, for a retry
                 self.speaker.speak_stream(self._hide_action_text(self.brain.ask(prompt, tools=tools,
                                                                                 fallback_tools=fallback), hidden),
                                           on_text=on_text)
@@ -692,6 +720,7 @@ class VoiceAssistant:
         """Wait for the next announcement, typed or spoken command: (kind, text)."""
         self._alternative = None
         self.listener.last_alternative = None
+        self._turn_source = "pc"
         item = self._next_input_raw(follow_up)
         if item is not None and item[0] == "command":
             self._alternative = self.listener.last_alternative
@@ -719,7 +748,11 @@ class VoiceAssistant:
         if not self._announcements.empty():
             return "announce", self._announcements.get_nowait()
         if not self._typed.empty():
-            return "command", self._typed.get_nowait()
+            text = self._typed.get_nowait()
+            if text in self._phone_texts:
+                self._phone_texts.remove(text)
+                self._turn_source = "phone"
+            return "command", text
         if self._push_to_talk.is_set() and self.mic_ok:
             self._push_to_talk.clear()
             if self.wake_sound:

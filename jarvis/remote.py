@@ -8,6 +8,9 @@ local network (port 8770) and serves:
   POST /api/ask         {"text": "..."}  run it and wait for Apex's answer -> {"reply": "..."}
                         (used by the Siri shortcut: "Dis Siri, Apex")
   POST /api/action      {"action": "repeat" | "toggle_listening" | "media"}
+  POST /api/audio       a voice recording from the phone (m4a/webm) -> {"heard": ..., "reply": ...}
+The same page is also served over HTTPS on port 8771 (local self-signed certificate): the iPhone
+only lets a web page use its microphone on a secure connection.
 Every request needs the secret key (stored in state.json, changed by "déconnecte mon iPhone").
 """
 from __future__ import annotations
@@ -50,9 +53,21 @@ def local_ip() -> str:
         return "127.0.0.1"
 
 
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):  # a phone that drops the connection is normal
+        import sys
+
+        log.debug("Phone connection error from %s: %r", client_address, sys.exc_info()[1])
+
+
 class RemoteServer:
-    def __init__(self, hud_server, on_command, on_action, port: int = PORT, host: str = "0.0.0.0"):
+    def __init__(self, hud_server, on_command, on_action, port: int = PORT, host: str = "0.0.0.0",
+                 transcribe=None):
         self.hud = hud_server
+        self.transcribe = transcribe          # callable(bytes, filename) -> text | None (phone voice)
+        self._servers: list[ThreadingHTTPServer] = []
         self.on_command = on_command
         self.on_action = on_action
         self.port = port
@@ -66,6 +81,10 @@ class RemoteServer:
     @property
     def url(self) -> str:
         return f"http://{local_ip()}:{self.port}/?k={self.key}"
+
+    @property
+    def secure_url(self) -> str:
+        return f"https://{local_ip()}:{self.port + 1}/?k={self.key}"
 
     @property
     def ask_url(self) -> str:
@@ -148,8 +167,10 @@ class RemoteServer:
             def do_POST(self):  # noqa: N802
                 url = urlparse(self.path)
                 query = parse_qs(url.query)
-                if url.path not in ("/api/command", "/api/ask", "/api/action") or not self._authorized(query):
+                if url.path not in ("/api/command", "/api/ask", "/api/action", "/api/audio") or not self._authorized(query):
                     return self._send(403, b"forbidden")
+                if url.path == "/api/audio":
+                    return self._audio()
                 try:
                     length = min(int(self.headers.get("Content-Length", 0)), 4000)
                     raw = self.rfile.read(length) or b"{}"
@@ -171,6 +192,24 @@ class RemoteServer:
                     return self._send(200, data, "application/json; charset=utf-8")
                 ref.on_command(text)
                 return self._send(204, b"")
+
+            def _audio(self) -> None:
+                """A recording made on the phone: transcribe it (Whisper), run it, return the answer."""
+                length = int(self.headers.get("Content-Length", 0))
+                if length <= 0 or length > 6_000_000:
+                    return self._send(413, b"too large")
+                data = self.rfile.read(length)
+                ctype = (self.headers.get("Content-Type") or "").lower()
+                name = ("speech.webm" if "webm" in ctype else "speech.ogg" if "ogg" in ctype else
+                        "speech.mp3" if ("mpeg" in ctype or "mp3" in ctype) else "speech.wav" if "wav" in ctype else "speech.m4a")
+                text = ref.transcribe(data, name) if ref.transcribe else None
+                if not text:
+                    body = json.dumps({"heard": "", "reply": "Je n'ai pas compris, monsieur. Réessayez."}, ensure_ascii=False)
+                    return self._send(200, body.encode("utf-8"), "application/json; charset=utf-8")
+                log.info("iPhone (voice): %r", text)
+                reply = ref.ask(text)
+                body = json.dumps({"heard": text, "reply": reply}, ensure_ascii=False).encode("utf-8")
+                return self._send(200, body, "application/json; charset=utf-8")
 
             def _events(self) -> None:
                 client: queue.Queue = queue.Queue(maxsize=500)
@@ -204,19 +243,35 @@ class RemoteServer:
                         if client in ref._clients:
                             ref._clients.remove(client)
 
-        self._server = ThreadingHTTPServer((self.host, self.port), Handler)
-        self._server.daemon_threads = True
-        threading.Thread(target=self._server.serve_forever, name="remote", daemon=True).start()
+        http = _Server((self.host, self.port), Handler)
+        http.daemon_threads = True
+        self._servers = [http]
+        try:
+            import ssl
+
+            cert, key = ensure_certificate(local_ip())
+            https = _Server((self.host, self.port + 1), Handler)
+            https.daemon_threads = True
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(cert, key)
+            https.socket = ctx.wrap_socket(https.socket, server_side=True)
+            self._servers.append(https)
+        except Exception:  # noqa: BLE001 - the phone page still works without the secure address
+            log.exception("Secure (HTTPS) phone address unavailable")
+        for server in self._servers:
+            threading.Thread(target=server.serve_forever, name="remote", daemon=True).start()
+        self._server = http
         self.hud.add_listener(self.on_event)
-        log.info("iPhone remote listening on port %d", self.port)
+        log.info("iPhone remote listening on ports %d (http) and %d (https)", self.port, self.port + 1)
         return self.url
 
     def stop(self) -> None:
         self.hud.remove_listener(self.on_event)
-        if self._server is not None:
-            self._server.shutdown()
-            self._server.server_close()
-            self._server = None
+        for server in self._servers:
+            server.shutdown()
+            server.server_close()
+        self._servers = []
+        self._server = None
         log.info("iPhone remote stopped")
 
 
@@ -230,3 +285,40 @@ def make_qr(url: str, path: Path) -> Path:
 
 def wait_ready(seconds: float = 0.2) -> None:
     time.sleep(seconds)
+
+
+def ensure_certificate(ip: str) -> tuple[str, str]:
+    """A self-signed certificate for the PC's address (made once, again when the address changes).
+    The iPhone shows a warning the first time ("not private"): it is this local certificate."""
+    import datetime
+    import ipaddress
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    from jarvis.paths import ROOT
+
+    cert_path, key_path = ROOT / "remote_cert.pem", ROOT / "remote_key.pem"
+    if cert_path.exists() and key_path.exists():
+        try:
+            cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+            ips = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value.get_values_for_type(x509.IPAddress)
+            if ipaddress.ip_address(ip) in ips and cert.not_valid_after_utc > datetime.datetime.now(datetime.timezone.utc):
+                return str(cert_path), str(key_path)
+        except Exception:  # noqa: BLE001 - rebuild it
+            pass
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Apex (local)")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(days=1))
+            .not_valid_after(now + datetime.timedelta(days=825))
+            .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address(ip)), x509.DNSName("localhost")]),
+                           critical=False)
+            .sign(key, hashes.SHA256()))
+    cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                           serialization.NoEncryption()))
+    return str(cert_path), str(key_path)
