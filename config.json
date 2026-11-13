@@ -34,15 +34,17 @@
     }
   },
   "voice": {
-    "voice": "fr-FR-RemyMultilingualNeural",
-    "pitch": "-20Hz",
+    "voice": "fr-FR-HenriNeural",
+    "pitch": "-30Hz",
     "rate": "-2%",
     "volume": "+0%",
     "offline_rate": 165,
     "offline_language": "fr",
     "test_sentence": "Bonsoir monsieur. Apex est en ligne. Good evening, sir, all systems are online.",
-    "voice_en": "",
-    "pitch_en": "-12Hz",
+    "voice_en": "en-GB-RyanNeural",
+    "voice_backup": "en-US-BrianMultilingualNeural",
+    "pitch_backup": "-12Hz",
+    "pitch_en": "-15Hz",
     "rate_en": "-3%",
     "offline_fallback": false
   },

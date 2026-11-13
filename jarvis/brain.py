@@ -59,7 +59,10 @@ TOOLS_PROMPT = (
     "(boutons, menus, champs), regarde d'abord avec screen_look, puis utilise click_element et fill_field. "
     "N'appuie jamais sur une touche au hasard. Si aucune action ne permet de faire la demande (par exemple "
     "supprimer un message déjà envoyé), dis-le franchement en une phrase. "
-    "Sinon, réponds normalement."
+    "Ne dis jamais avoir vu, lu, reçu, envoyé, enregistré ou ouvert quoi que ce soit sans le résultat d'un outil "
+    "qui le prouve : n'invente jamais de messages, de noms d'expéditeurs, de fichiers ni de contenu d'écran. "
+    "Si tu ne peux pas le savoir, dis-le en une phrase. "
+    "Sinon, réponds normalement, en une à trois phrases courtes."
 )
 
 

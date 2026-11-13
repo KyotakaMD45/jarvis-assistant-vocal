@@ -288,6 +288,8 @@ class Speaker:
         # edge-tts (and aiohttp) take ~2 s to import: the session is created on first use.
         self._edge_obj: EdgeSession | None = None
         self._edge_en_obj: EdgeSession | None = None   # English voice (answers in English)
+        self._backup_obj: EdgeSession | None = None    # used when the main voice stops working
+        self._backup_until = 0.0
         self.language = "fr"                            # set by the assistant for each turn
         self._edge_error = ""
         self._edge_created = False
@@ -326,6 +328,21 @@ class Speaker:
                     return self._edge
             return self._edge_en_obj
         return self._edge
+
+    def _backup(self) -> EdgeSession | None:
+        """A second neural voice (male, French and English): Microsoft sometimes stops serving
+        one voice for hours (NoAudioReceived); Apex then keeps talking with this one."""
+        name = self.cfg.get("voice_backup") or ""
+        if not name or name == self.cfg.get("voice"):
+            return None
+        if self._backup_obj is None:
+            v = self.cfg
+            try:
+                self._backup_obj = EdgeSession(name, v["rate"], v.get("pitch_backup", "-10Hz"), v["volume"])
+            except Exception as exc:  # noqa: BLE001
+                log.error("Backup voice disabled: %r", exc)
+                return None
+        return self._backup_obj
 
     # -- helpers -------------------------------------------------------------------
     def _run(self, coro, timeout: float):
@@ -414,15 +431,33 @@ class Speaker:
                             self.first_audio_delay = time.perf_counter() - started
                         _p.feed(data)
 
+                    backup = self._backup()
+                    if backup is not None and time.monotonic() < self._backup_until:
+                        # The main voice failed a moment ago: do not lose seconds on it again.
+                        try:
+                            self._run(backup.synth(sentence, on_audio), CONNECT_TIMEOUT * 2 + RECEIVE_TIMEOUT * 3)
+                            continue
+                        except Exception as exc:  # noqa: BLE001
+                            log.info("Backup voice failed (%r), trying the main voice", exc)
                     try:
                         self._run(edge.synth(sentence, on_audio), CONNECT_TIMEOUT * 2 + RECEIVE_TIMEOUT * 3)
+                        self._backup_until = 0.0
                         continue
                     except Exception as exc:  # noqa: BLE001
                         log.info("edge-tts persistent connection failed (%r), using a fresh connection", exc)
                     try:
                         self._run(edge.synth_fresh(sentence, on_audio), 20)
+                        self._backup_until = 0.0
                         continue
                     except Exception as exc:  # noqa: BLE001
+                        if backup is not None:
+                            try:
+                                self._run(backup.synth_fresh(sentence, on_audio), 20)
+                                log.warning("Main voice unavailable (%r): using the backup voice for 10 minutes", exc)
+                                self._backup_until = time.monotonic() + 600
+                                continue
+                            except Exception as exc2:  # noqa: BLE001
+                                exc = exc2
                         if not fallback:
                             # No other voice: the text stays on screen; try again with the next sentence.
                             log.warning("edge-tts could not say %r (%r); text shown only", sentence[:60], exc)

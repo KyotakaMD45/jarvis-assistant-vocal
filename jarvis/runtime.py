@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 from jarvis.logger import get_logger
@@ -83,10 +84,44 @@ class Runtime:
                 return t.transcribe_file(data, name) if t is not None and t.available() else None
 
             self.remote = RemoteServer(self.server, lambda text: self.assistant.submit_text(text, source="phone"),
-                                       self.assistant.handle_action, transcribe=transcribe)
+                                       self.assistant.handle_action, transcribe=transcribe, status=self.phone_status)
             self.remote.start()
         save_state(remote_enabled=True)
         return self.remote.url
+
+    def phone_status(self) -> dict:
+        """What the phone page shows in its status panel (no secrets)."""
+        from datetime import datetime
+
+        import psutil
+
+        a = self.assistant
+        out = {"name": a.cfg.get("assistant_name", "Apex"), "listening": bool(a.listening_enabled),
+               "ai": f"{a.brain.label} · {a.brain.model.split('/')[-1]}", "voice": a.speaker.cfg.get("voice", "")}
+        if time.monotonic() < getattr(a.speaker, "_backup_until", 0):
+            out["voice"] = a.speaker.cfg.get("voice_backup", "") + " (secours)"
+        out["voice"] = out["voice"].replace("Neural", "").replace("Multilingual", "")
+        try:
+            out["cpu"] = round(psutil.cpu_percent(interval=0.2))
+            out["ram"] = round(psutil.virtual_memory().percent)
+            bat = psutil.sensors_battery()
+            if bat is not None:
+                out["battery"] = round(bat.percent)
+                out["plugged"] = bool(bat.power_plugged)
+        except Exception:  # noqa: BLE001
+            pass
+        reminders = []
+        service = getattr(a, "reminders", None)
+        for item in (service.pending() if service is not None else [])[:8]:
+            try:
+                due = datetime.fromisoformat(item["due"])
+                reminders.append({"what": "Minuteur" if item.get("kind") == "timer" else item.get("what", ""),
+                                  "due": due.strftime("%H:%M") if due.date() == datetime.now().date()
+                                  else due.strftime("%d/%m %H:%M")})
+            except (KeyError, ValueError):
+                continue
+        out["reminders"] = reminders
+        return out
 
     def stop_remote(self) -> None:
         from jarvis.remote import remote_key

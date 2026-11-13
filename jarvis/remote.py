@@ -64,8 +64,9 @@ class _Server(ThreadingHTTPServer):
 
 class RemoteServer:
     def __init__(self, hud_server, on_command, on_action, port: int = PORT, host: str = "0.0.0.0",
-                 transcribe=None):
+                 transcribe=None, status=None):
         self.hud = hud_server
+        self.status = status                  # callable() -> dict (status panel of the phone page)
         self.transcribe = transcribe          # callable(bytes, filename) -> text | None (phone voice)
         self._servers: list[ThreadingHTTPServer] = []
         self.on_command = on_command
@@ -162,6 +163,16 @@ class RemoteServer:
                     if not self._authorized(query):
                         return self._send(403, b"forbidden")
                     return self._events()
+                if url.path == "/api/status":
+                    if not self._authorized(query):
+                        return self._send(403, b"forbidden")
+                    try:
+                        data = ref.status() if ref.status else {}
+                    except Exception:  # noqa: BLE001 - the status panel is informative only
+                        log.exception("Phone status failed")
+                        data = {}
+                    return self._send(200, json.dumps(data, ensure_ascii=False).encode("utf-8"),
+                                      "application/json; charset=utf-8")
                 return self._send(404, b"not found")
 
             def do_POST(self):  # noqa: N802

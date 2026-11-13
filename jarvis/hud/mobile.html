@@ -22,7 +22,7 @@
       linear-gradient(90deg, rgba(90, 190, 255, 0.045) 1px, transparent 1px) 0 0 / 34px 34px,
       radial-gradient(120% 70% at 50% 18%, #0f2f42 0%, #06141f 55%, #02070c 100%); }
   .hero { position: relative; display: flex; flex-direction: column; align-items: center; padding: 10px 0 2px; }
-  .hero canvas { width: 168px; height: 168px; }
+  .hero canvas { width: 150px; height: 150px; transition: width 0.3s, height 0.3s; }
   .brand { position: absolute; top: 12px; left: 0; font-size: 11px; letter-spacing: 0.35em; color: rgba(150, 210, 255, 0.65); }
   .dot { position: absolute; top: 12px; right: 0; width: 10px; height: 10px; border-radius: 50%; background: #c0392b; box-shadow: 0 0 8px #c0392b; }
   .dot.on { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
@@ -76,6 +76,48 @@
     border-radius: 12px; background: rgba(8, 26, 40, 0.97); border: 1px solid var(--line); font-size: 14px; color: var(--text); }
   .toast[hidden] { display: none; }
   #locked { display: none; padding: 30px 0; text-align: center; color: var(--muted); }
+  .chips { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+  .chip { font-size: 11px; letter-spacing: 0.06em; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line);
+    background: rgba(6, 22, 34, 0.75); color: var(--muted); }
+  .chip[hidden] { display: none; }
+  .chip.ok { color: #8ff0b0; border-color: rgba(46, 204, 113, 0.4); }
+  .chip.warn { color: var(--gold); border-color: rgba(255, 195, 90, 0.45); }
+  .tabs { display: flex; gap: 6px; margin: 8px 0 4px; padding: 4px; border-radius: 16px; background: rgba(4, 16, 26, 0.7); border: 1px solid var(--line); }
+  .tabs button { flex: 1; border: 0; background: none; color: var(--muted); padding: 9px 0; border-radius: 12px; font-size: 14px; font-weight: 600; }
+  .tabs button.on { color: #1a1205; background: linear-gradient(135deg, #ffd77a, #ffae2e); box-shadow: 0 0 14px rgba(255, 170, 40, 0.35); }
+  .pane { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .pane.on { display: flex; }
+  .scroll { flex: 1; overflow-y: auto; padding: 8px 0 14px; }
+  .group { margin: 8px 0 14px; }
+  .group h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.3em; color: var(--gold); font-weight: 600; text-transform: uppercase; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 78px; padding: 10px 4px;
+    border-radius: 16px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 12.5px; line-height: 1.2; text-align: center;
+    transition: transform 0.12s ease, border-color 0.2s; }
+  .tile i { font-style: normal; font-size: 22px; }
+  .tile:active { transform: scale(0.94); border-color: var(--gold); box-shadow: 0 0 16px rgba(255, 170, 40, 0.35); }
+  .tile.danger { border-color: rgba(255, 120, 110, 0.35); }
+  .card { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); padding: 14px; margin-bottom: 10px; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(90, 200, 255, 0.08); font-size: 15px; }
+  .row:last-child { border-bottom: 0; }
+  .row span:first-child { color: var(--muted); }
+  .row span:last-child { text-align: right; overflow-wrap: anywhere; }
+  .meter { height: 6px; border-radius: 3px; background: rgba(90, 200, 255, 0.12); overflow: hidden; margin-top: 4px; }
+  .meter div { height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--gold)); transition: width 0.6s; }
+  .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .gauge { text-align: center; font-size: 12px; color: var(--muted); }
+  .gauge b { display: block; font-size: 22px; color: var(--text); font-weight: 600; }
+  .empty { color: var(--muted); font-size: 14px; }
+  .rem { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(90, 200, 255, 0.08); }
+  .rem:last-child { border-bottom: 0; }
+  .rem b { color: var(--gold); font-variant-numeric: tabular-nums; }
+  .compose { display: flex; flex-direction: column; gap: 8px; }
+  .compose input, .compose textarea { border: 1px solid var(--line); background: rgba(4, 16, 26, 0.85); color: var(--text);
+    border-radius: 12px; padding: 11px 12px; font-size: 16px; outline: none; font-family: inherit; }
+  .compose textarea { min-height: 70px; resize: vertical; }
+  .wide { width: 100%; padding: 12px; border-radius: 14px; border: 0; font-size: 16px; font-weight: 700; color: #1a1205;
+    background: linear-gradient(135deg, #ffd77a, #ffae2e); }
+  .hero.small canvas { width: 92px; height: 92px; }
 </style>
 </head>
 <body>
@@ -84,10 +126,23 @@
     <span id="dot" class="dot" title="Connexion au PC"></span>
     <canvas id="orb" width="336" height="336" aria-hidden="true"></canvas>
     <div id="state">connexion…</div>
+    <div class="chips">
+      <span class="chip" id="c-mic">Micro PC —</span>
+      <span class="chip" id="c-ai">IA —</span>
+      <span class="chip" id="c-bat" hidden>—</span>
+    </div>
   </section>
 
+  <nav class="tabs" role="tablist">
+    <button type="button" class="on" data-tab="talk">Apex</button>
+    <button type="button" data-tab="ctrl">Contrôle</button>
+    <button type="button" data-tab="info">État</button>
+  </nav>
+
   <div id="locked">Scannez le code QR affiché sur le PC (« Apex, connecte mon iPhone ») pour relier ce téléphone.</div>
-  <main id="chat" aria-live="polite"></main>
+
+  <section class="pane on" id="p-talk">
+  <main id="chat" class="scroll" aria-live="polite"></main>
 
   <div class="quick">
     <button type="button" data-cmd="Quelle heure est-il ?">Heure</button>
@@ -111,7 +166,67 @@
     <label><input id="speak" type="checkbox"> Lire les réponses ici</label>
     <a id="secure" href="#" hidden>Activer le micro</a>
   </div>
+  </section>
 
+  <section class="pane" id="p-ctrl"><div class="scroll">
+    <div class="group"><h3>Média</h3><div class="tiles">
+      <button type="button" class="tile" data-action="media"><i>⏯️</i>Lecture / pause</button>
+      <button type="button" class="tile" data-cmd="Chanson suivante"><i>⏭️</i>Suivant</button>
+      <button type="button" class="tile" data-cmd="Chanson précédente"><i>⏮️</i>Précédent</button>
+      <button type="button" class="tile" data-cmd="Monte le volume"><i>🔊</i>Volume +</button>
+      <button type="button" class="tile" data-cmd="Baisse le volume"><i>🔉</i>Volume −</button>
+      <button type="button" class="tile" data-cmd="Coupe le son"><i>🔇</i>Muet</button>
+    </div></div>
+    <div class="group"><h3>Ordinateur</h3><div class="tiles">
+      <button type="button" class="tile" data-cmd="Capture d'écran"><i>📸</i>Capture</button>
+      <button type="button" class="tile" data-cmd="Qu'est-ce qu'il y a à l'écran ?"><i>👁️</i>Lire l'écran</button>
+      <button type="button" class="tile" data-cmd="Montre le bureau"><i>🖥️</i>Bureau</button>
+      <button type="button" class="tile" data-cmd="Monte la luminosité"><i>☀️</i>Lumière +</button>
+      <button type="button" class="tile" data-cmd="Baisse la luminosité"><i>🌙</i>Lumière −</button>
+      <button type="button" class="tile" data-action="toggle_listening"><i>🎙️</i>Micro du PC</button>
+      <button type="button" class="tile" data-cmd="Verrouille le PC"><i>🔒</i>Verrouiller</button>
+      <button type="button" class="tile danger" data-cmd="Mets le PC en veille"><i>💤</i>Veille</button>
+      <button type="button" class="tile danger" data-cmd="Éteins le PC"><i>⏻</i>Éteindre</button>
+    </div></div>
+    <div class="group"><h3>Applications</h3><div class="tiles">
+      <button type="button" class="tile" data-cmd="Ouvre WhatsApp"><i>💬</i>WhatsApp</button>
+      <button type="button" class="tile" data-cmd="Ouvre Chrome"><i>🌐</i>Chrome</button>
+      <button type="button" class="tile" data-cmd="Ouvre Spotify"><i>🎵</i>Spotify</button>
+      <button type="button" class="tile" data-cmd="Ouvre VS Code"><i>🧑‍💻</i>VS Code</button>
+      <button type="button" class="tile" data-cmd="Ouvre l'explorateur de fichiers"><i>📁</i>Fichiers</button>
+      <button type="button" class="tile" data-cmd="Ouvre YouTube"><i>▶️</i>YouTube</button>
+    </div></div>
+    <div class="group"><h3>Message WhatsApp</h3>
+      <form class="compose card" id="wa" autocomplete="off">
+        <input id="wa-to" type="text" placeholder="Contact (ex. Paul)">
+        <textarea id="wa-msg" placeholder="Message"></textarea>
+        <button class="wide" type="submit">Préparer l'envoi</button>
+      </form>
+    </div>
+    <div class="group"><h3>Minuteur</h3><div class="tiles">
+      <button type="button" class="tile" data-cmd="Minuteur de 5 minutes"><i>⏱️</i>5 min</button>
+      <button type="button" class="tile" data-cmd="Minuteur de 15 minutes"><i>⏱️</i>15 min</button>
+      <button type="button" class="tile" data-cmd="Minuteur d'une heure"><i>⏱️</i>1 heure</button>
+    </div></div>
+  </div></section>
+
+  <section class="pane" id="p-info"><div class="scroll">
+    <div class="card">
+      <div class="gauges">
+        <div class="gauge"><b id="g-cpu">—</b>Processeur<div class="meter"><div id="m-cpu"></div></div></div>
+        <div class="gauge"><b id="g-ram">—</b>Mémoire<div class="meter"><div id="m-ram"></div></div></div>
+        <div class="gauge"><b id="g-bat">—</b>Batterie<div class="meter"><div id="m-bat"></div></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row"><span>Connexion au PC</span><span id="i-link">—</span></div>
+      <div class="row"><span>Micro du PC</span><span id="i-mic">—</span></div>
+      <div class="row"><span>Intelligence</span><span id="i-ai">—</span></div>
+      <div class="row"><span>Voix</span><span id="i-voice">—</span></div>
+    </div>
+    <div class="group"><h3>Rappels et minuteurs</h3>
+      <div class="card" id="rems"><div class="empty">Aucun rappel en attente.</div></div>
+    </div>
   <details>
     <summary>Utiliser Apex avec Siri</summary>
     <ol>
@@ -124,6 +239,7 @@
     <code id="askurl">—</code>
     <button type="button" id="copy" class="send" style="padding:8px 14px">Copier l'adresse</button>
   </details>
+  </div></section>
 
   <div id="alarm" class="alarm" hidden>
     <div class="bell">⏰</div>
@@ -240,6 +356,7 @@
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   }
   function confirmBox(question) {
+    if (window.__apexTab) window.__apexTab("talk");
     document.querySelectorAll(".confirm").forEach((c) => c.remove());
     const box = document.createElement("div");
     box.className = "confirm";
@@ -283,7 +400,7 @@
 
   function handle(m) {
     switch (m.type) {
-      case "state": setState(m.state); break;
+      case "state": setState(m.state); if (m.state === "paused" || m.state === "idle") setTimeout(() => window.__apexStatus && window.__apexStatus(), 300); break;
       case "log":
         bubble(m.role, m.text, m.id);
         if (m.role === "jarvis" && !m.streaming) say(m.text);
@@ -369,6 +486,68 @@
     }
     if (rec && rec.state === "recording") stopRec(); else startRec();
   };
+  // ---- tabs ---------------------------------------------------------------------------------
+  function showTab(name) {
+    document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+    document.querySelectorAll(".pane").forEach((p) => p.classList.toggle("on", p.id === `p-${name}`));
+    document.querySelector(".hero").classList.toggle("small", name !== "talk");
+    try { localStorage.setItem("apexTab", name); } catch (e) { /* ignore */ }
+    if (name === "info") refreshStatus();
+    if (name === "talk") chat.scrollTop = chat.scrollHeight;
+  }
+  window.__apexTab = showTab;
+  document.querySelectorAll(".tabs button").forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+  document.querySelectorAll(".tile").forEach((b) => {
+    b.addEventListener("click", () => { if (navigator.vibrate) navigator.vibrate(15); toast("Envoyé à Apex : " + b.textContent.trim(), 1800); });
+  });
+
+  // ---- status -------------------------------------------------------------------------------
+  function meter(id, v) { const el = $(id); if (el) el.style.width = `${Math.max(0, Math.min(100, v || 0))}%`; }
+  function chip(id, text, cls) { const c = $(id); c.textContent = text; c.className = `chip ${cls || ""}`; c.hidden = false; }
+  async function refreshStatus() {
+    if (!KEY) return;
+    let s;
+    try { s = await (await fetch(`/api/status${q}`, { cache: "no-store" })).json(); } catch (e) { $("i-link").textContent = "hors ligne"; return; }
+    $("i-link").textContent = "en ligne ✓";
+    chip("c-mic", s.listening ? "Micro PC actif" : "Micro PC en pause", s.listening ? "ok" : "warn");
+    $("i-mic").textContent = s.listening ? "actif" : "en pause";
+    if (s.ai) { chip("c-ai", s.ai, ""); $("i-ai").textContent = s.ai; }
+    if (s.voice) $("i-voice").textContent = s.voice;
+    if (s.cpu != null) { $("g-cpu").textContent = `${s.cpu}%`; meter("m-cpu", s.cpu); }
+    if (s.ram != null) { $("g-ram").textContent = `${s.ram}%`; meter("m-ram", s.ram); }
+    if (s.battery != null) {
+      $("g-bat").textContent = `${s.battery}%`; meter("m-bat", s.battery);
+      chip("c-bat", `PC ${s.battery}%${s.plugged ? " ⚡" : ""}`, s.battery < 20 && !s.plugged ? "warn" : "");
+    }
+    const box = $("rems"); box.textContent = "";
+    if (!s.reminders || !s.reminders.length) {
+      const e = document.createElement("div"); e.className = "empty"; e.textContent = "Aucun rappel en attente."; box.appendChild(e);
+    } else {
+      for (const r of s.reminders) {
+        const row = document.createElement("div"); row.className = "rem";
+        const a = document.createElement("span"); a.textContent = r.what || "Rappel";
+        const b = document.createElement("b"); b.textContent = r.due;
+        row.append(a, b); box.appendChild(row);
+      }
+    }
+  }
+  window.__apexStatus = refreshStatus;
+  setInterval(() => { if (!document.hidden) refreshStatus(); }, 8000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshStatus(); });
+
+  // ---- WhatsApp form: Apex prepares the message, the user confirms with Oui / Non -------------
+  $("wa").onsubmit = (e) => {
+    e.preventDefault();
+    const to = $("wa-to").value.trim(), msg = $("wa-msg").value.trim();
+    if (!to || !msg) { toast("Indiquez le contact et le message."); return; }
+    post("/api/command", { text: `Envoie sur WhatsApp à ${to} : ${msg}` });
+    $("wa-msg").value = ""; showTab("talk");
+  };
+
+  let savedTab = "talk";
+  try { savedTab = localStorage.getItem("apexTab") || "talk"; } catch (e) { /* ignore */ }
+  showTab(["talk", "ctrl", "info"].includes(savedTab) ? savedTab : "talk");
+  refreshStatus();
   window.__apexHandle = handle; // tests
   connect();
 })();

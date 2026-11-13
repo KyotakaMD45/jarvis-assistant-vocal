@@ -5,7 +5,7 @@ smoothly on a modest laptop (tested on an HP ProBook 650 G4: i7-8550U, 8 GB RAM,
 
 - **Wake word "Apex"** (also "Knull" or "Jarvis") detected offline (Vosk), sentence transcribed by **Groq Whisper large-v3**
   with automatic French/English detection; answers in the language you speak, with a deep multilingual voice
-  (fr-FR-RemyMultilingualNeural). Offline fallback.
+  (fr-FR-HenriNeural, English answers en-GB-RyanNeural, automatic backup voice). Offline fallback.
 - **Natural conversation**: answers stream as speech sentence by sentence, follow-up questions
   without repeating the name, and you can **interrupt Apex while he talks** (barge-in).
 - **Several AI brains**: Claude, Groq, Gemini or OpenAI — switch by voice ("passe sur Groq").
